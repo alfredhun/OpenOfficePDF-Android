@@ -36,8 +36,6 @@ class CollaboraOfficeAdapterTest {
             override suspend fun checkFileAccess(uri: Uri): EngineResult<Unit> = EngineResult.Success(Unit)
             override fun openReadOnlyStream(uri: Uri): InputStream =
                 ByteArrayInputStream("PK\u0003\u0004mock_docx_bytes".toByteArray())
-            override suspend fun acquirePosixWorkingCopy(uri: Uri, sessionId: String): EngineResult<WorkingCopyHandle> =
-                EngineResult.Success(WorkingCopyHandle(File(tempDir, "mock.docx"), isTemporary = true))
         }
 
         mockTempFileManager = object : TemporaryFileManager() {

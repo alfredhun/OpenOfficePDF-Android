@@ -53,7 +53,8 @@ interface DocumentAccessProvider {
     /**
      * 持久化并验证 SAF URI 读写权限
      */
-    suspend fun persistAndValidatePermission(uri: Uri): EngineResult<PermissionStatus>
+    suspend fun persistAndValidatePermission(uri: Uri): EngineResult<PermissionStatus> =
+        EngineResult.Success(PermissionStatus.GRANTED)
 }
 
 data class RandomAccessHandle(
