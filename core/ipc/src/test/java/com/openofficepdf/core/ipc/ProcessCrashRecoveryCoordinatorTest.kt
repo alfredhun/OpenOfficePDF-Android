@@ -57,7 +57,7 @@ class ProcessCrashRecoveryCoordinatorTest {
             }
         }
 
-        mockTempFileManager = object : TemporaryFileManager {
+        mockTempFileManager = object : TemporaryFileManager() {
             override fun createStagingCopy(sessionId: SessionId, prefix: String): EngineResult<File> =
                 EngineResult.success(File("/dummy"))
             override fun getTemporaryFile(relativePath: String): File = File("/dummy")

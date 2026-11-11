@@ -36,6 +36,17 @@ interface DocumentAccessProvider {
     suspend fun beginSaveTransaction(targetUri: Uri, sessionId: String): EngineResult<TransactionalOutput>
 
     /**
+     * 顺序读取流（供文件拷贝、预览等直接使用）
+     */
+    fun openReadOnlyStream(uri: Uri): InputStream =
+        throw UnsupportedOperationException("openReadOnlyStream")
+
+    /**
+     * 校验文件访问权限
+     */
+    suspend fun checkFileAccess(uri: Uri): EngineResult<Unit> = EngineResult.Success(Unit)
+
+    /**
      * 持久化并验证 SAF URI 读写权限
      */
     suspend fun persistAndValidatePermission(uri: Uri): EngineResult<PermissionStatus>

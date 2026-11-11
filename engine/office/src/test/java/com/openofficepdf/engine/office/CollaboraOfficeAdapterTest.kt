@@ -33,18 +33,16 @@ class CollaboraOfficeAdapterTest {
         tempDir.mkdirs()
 
         mockStorageProvider = object : DocumentAccessProvider {
-            override suspend fun checkFileAccess(uri: Uri): EngineResult<Unit> = EngineResult.success(Unit)
-            override fun openRandomAccessFd(uri: Uri): EngineResult<android.os.ParcelFileDescriptor> =
-                throw UnsupportedOperationException()
+            override suspend fun checkFileAccess(uri: Uri): EngineResult<Unit> = EngineResult.Success(Unit)
             override fun openReadOnlyStream(uri: Uri): InputStream =
                 ByteArrayInputStream("PK\u0003\u0004mock_docx_bytes".toByteArray())
         }
 
-        mockTempFileManager = object : TemporaryFileManager {
+        mockTempFileManager = object : TemporaryFileManager() {
             override fun createStagingCopy(sessionId: SessionId, prefix: String): EngineResult<File> {
                 val f = File(tempDir, "${prefix}${sessionId.value}.docx")
                 f.writeText("temp")
-                return EngineResult.success(f)
+                return EngineResult.Success(f)
             }
             override fun getTemporaryFile(relativePath: String): File = File(tempDir, relativePath)
             override fun releaseSessionStaging(sessionId: SessionId): Long = 0L
@@ -52,13 +50,13 @@ class CollaboraOfficeAdapterTest {
             override fun unpinFile(file: File) {}
         }
 
-        mockCommitter = object : TransactionalFileCommitter {
+        mockCommitter = object : TransactionalFileCommitter() {
             override suspend fun commitTransaction(
                 sessionId: SessionId,
                 stagingFile: File,
                 destinationUri: Uri,
                 format: DocumentFormat
-            ): EngineResult<Unit> = EngineResult.success(Unit)
+            ): EngineResult<Unit> = EngineResult.Success(Unit)
         }
 
         mockSessionDao = object : SessionAndEditDao {

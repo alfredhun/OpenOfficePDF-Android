@@ -140,6 +140,9 @@ class MarkdownWorkspaceViewModel(
                         toastMessage = "保存失败: ${stageResult.errorMessage}"
                     )
                 }
+                else -> {
+                    _uiState.value = _uiState.value.copy(isSaving = false)
+                }
             }
         }
     }

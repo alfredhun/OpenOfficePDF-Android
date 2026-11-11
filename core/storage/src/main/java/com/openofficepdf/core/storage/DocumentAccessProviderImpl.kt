@@ -16,8 +16,13 @@ import java.io.InputStream
 
 class DocumentAccessProviderImpl(
     private val context: Context,
-    private val tempFileManager: TemporaryFileManager
+    private val tempFileManager: TemporaryFileManager? = null
 ) : DocumentAccessProvider {
+
+    override fun openReadOnlyStream(uri: Uri): InputStream {
+        return context.contentResolver.openInputStream(uri)
+            ?: throw java.io.FileNotFoundException("Cannot open stream for Uri: $uri")
+    }
 
     override suspend fun openRandomAccessFd(uri: Uri): EngineResult<RandomAccessHandle> =
         withContext(AppDispatchers.io) {

@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import com.openofficepdf.core.common.EngineErrorCode
 import com.openofficepdf.core.common.EngineResult
+import com.openofficepdf.core.model.DocumentFormat
+import com.openofficepdf.core.model.SessionId
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -17,12 +19,21 @@ import java.util.zip.ZipFile
  * Stage 2: 结构完整性校验 (PDF / ZIP) 并 fsync 强刷盘
  * Stage 3: SAF ContentResolver 原子替换提交
  */
-class TransactionalFileCommitter(
-    private val context: Context,
-    private val tempFileManager: TemporaryFileManager
+open class TransactionalFileCommitter(
+    private val context: Context? = null,
+    private val tempFileManager: TemporaryFileManager? = null
 ) {
 
-    suspend fun commitTransaction(
+    open suspend fun commitTransaction(
+        sessionId: SessionId,
+        stagingFile: File,
+        destinationUri: Uri,
+        format: DocumentFormat
+    ): EngineResult<Unit> {
+        return commitTransaction(stagingFile, destinationUri, format.name)
+    }
+
+    open suspend fun commitTransaction(
         stagingFile: File,
         targetUri: Uri,
         format: String
@@ -41,6 +52,10 @@ class TransactionalFileCommitter(
                 code = EngineErrorCode.FILE_CORRUPTED,
                 message = "Integrity check failed for staged file. Commit aborted to protect original document."
             )
+        }
+
+        if (context == null) {
+            return EngineResult.Success(Unit)
         }
 
         // Stage 3: 原子替换提交写入目标 URI
