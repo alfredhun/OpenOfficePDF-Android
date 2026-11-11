@@ -17,7 +17,7 @@ data class ConversionTaskEntity(
     val taskId: String,
     
     @ColumnInfo(name = "source_document_id")
-    val sourceDocumentId: String?,
+    val sourceDocumentId: String? = null,
     
     @ColumnInfo(name = "source_uri")
     val sourceUri: String,
@@ -29,13 +29,16 @@ data class ConversionTaskEntity(
     val targetFormat: String,
     
     @ColumnInfo(name = "conversion_tier")
-    val conversionTier: String,               // LOSSLESS, LAYOUT_REBUILD, OCR_REBUILD
+    val conversionTier: String = "LOSSLESS",               // LOSSLESS, LAYOUT_REBUILD, OCR_REBUILD
+
+    @ColumnInfo(name = "quality_tier")
+    val qualityTier: String = conversionTier,
     
     @ColumnInfo(name = "output_uri")
-    val outputUri: String?,
+    val outputUri: String? = null,
     
     @ColumnInfo(name = "staging_dir_path")
-    val stagingDirPath: String?,              // 分页中间产物缓存目录
+    val stagingDirPath: String? = null,              // 分页中间产物缓存目录
     
     @ColumnInfo(name = "status")
     val status: String,                       // PENDING, RUNNING, PAUSED, COMPLETED, FAILED, CANCELLED
@@ -45,6 +48,12 @@ data class ConversionTaskEntity(
     
     @ColumnInfo(name = "last_completed_page", defaultValue = "0")
     val lastCompletedPage: Int = 0,           // 页级 Checkpoint 断点恢复游标
+
+    @ColumnInfo(name = "completed_pages", defaultValue = "0")
+    val completedPages: Int = lastCompletedPage,
+
+    @ColumnInfo(name = "checkpoint_data_json")
+    val checkpointDataJson: String? = null,
     
     @ColumnInfo(name = "progress", defaultValue = "0.0")
     val progress: Float = 0.0f,
@@ -56,8 +65,8 @@ data class ConversionTaskEntity(
     val errorMessage: String? = null,
     
     @ColumnInfo(name = "created_at")
-    val createdAt: Long,
+    val createdAt: Long = System.currentTimeMillis(),
     
     @ColumnInfo(name = "updated_at")
-    val updatedAt: Long
+    val updatedAt: Long = System.currentTimeMillis()
 )

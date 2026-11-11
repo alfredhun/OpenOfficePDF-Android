@@ -14,8 +14,14 @@ interface TaskDao {
     @Query("SELECT * FROM conversion_tasks WHERE task_id = :taskId LIMIT 1")
     suspend fun getConversionTaskById(taskId: String): ConversionTaskEntity?
 
+    @Query("SELECT * FROM conversion_tasks WHERE task_id = :taskId LIMIT 1")
+    suspend fun getConversionTask(taskId: String): ConversionTaskEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateConversionTask(task: ConversionTaskEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertConversionTask(task: ConversionTaskEntity)
 
     @Query("UPDATE conversion_tasks SET status = :status, progress = :progress, last_completed_page = :lastCompletedPage, updated_at = :updatedAt WHERE task_id = :taskId")
     suspend fun updateConversionProgress(taskId: String, status: String, progress: Float, lastCompletedPage: Int, updatedAt: Long)

@@ -26,7 +26,7 @@ object ConversionQualityAdvisor {
     ): QualityAssessment {
         return when {
             // 1. 无损原生导出 (LOSSLESS)
-            (sourceFormat == DocumentFormat.DOCX || sourceFormat == DocumentFormat.XLSX || sourceFormat == DocumentFormat.MARKDOWN) &&
+            (sourceFormat == DocumentFormat.DOCX || sourceFormat == DocumentFormat.XLSX || sourceFormat == DocumentFormat.MD) &&
                     targetFormat == DocumentFormat.PDF -> {
                 QualityAssessment(
                     tier = ConversionTier.LOSSLESS,
