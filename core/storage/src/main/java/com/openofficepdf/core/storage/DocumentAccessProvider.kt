@@ -18,22 +18,26 @@ interface DocumentAccessProvider {
      * 优先获取可随机读取的文件描述符（供 PDFium Custom File Access 等通过 JNI pread64 按需读取）
      * 若底层 Provider 不支持随机 seek，自动回退至沙盒流式缓存副本并返回其 FD
      */
-    suspend fun openRandomAccessFd(uri: Uri): EngineResult<RandomAccessHandle>
+    suspend fun openRandomAccessFd(uri: Uri): EngineResult<RandomAccessHandle> =
+        EngineResult.failure(com.openofficepdf.core.common.EngineErrorCode.UNSUPPORTED_FORMAT, "Not supported")
 
     /**
      * 获取顺序读取流（供 Markdown、轻量配置文件读取）
      */
-    suspend fun openSequentialStream(uri: Uri): EngineResult<InputStream>
+    suspend fun openSequentialStream(uri: Uri): EngineResult<InputStream> =
+        EngineResult.failure(com.openofficepdf.core.common.EngineErrorCode.UNSUPPORTED_FORMAT, "Not supported")
 
     /**
      * 为强制要求 POSIX 本地文件路径的引擎（如 LibreOffice LOKit）创建受控沙盒工作副本
      */
-    suspend fun acquirePosixWorkingCopy(uri: Uri, sessionId: String): EngineResult<WorkingCopyHandle>
+    suspend fun acquirePosixWorkingCopy(uri: Uri, sessionId: String): EngineResult<WorkingCopyHandle> =
+        EngineResult.failure(com.openofficepdf.core.common.EngineErrorCode.UNSUPPORTED_FORMAT, "Not supported")
 
     /**
      * 开启三阶段原子保存事务
      */
-    suspend fun beginSaveTransaction(targetUri: Uri, sessionId: String): EngineResult<TransactionalOutput>
+    suspend fun beginSaveTransaction(targetUri: Uri, sessionId: String): EngineResult<TransactionalOutput> =
+        EngineResult.failure(com.openofficepdf.core.common.EngineErrorCode.UNSUPPORTED_FORMAT, "Not supported")
 
     /**
      * 顺序读取流（供文件拷贝、预览等直接使用）

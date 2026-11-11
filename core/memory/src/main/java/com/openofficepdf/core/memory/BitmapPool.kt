@@ -13,7 +13,9 @@ interface BitmapPool {
     fun acquire(width: Int, height: Int, config: Bitmap.Config = Bitmap.Config.ARGB_8888): Bitmap
     fun release(bitmap: Bitmap)
     fun trimMemory(level: Int)
+    fun trim(level: Int) = trimMemory(level)
     fun clear()
+    fun poolSizeBytes(): Long = 0L
 }
 
 class BitmapPoolImpl(

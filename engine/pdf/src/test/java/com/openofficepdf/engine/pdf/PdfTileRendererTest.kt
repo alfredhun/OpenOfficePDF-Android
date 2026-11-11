@@ -19,9 +19,8 @@ class PdfTileRendererTest {
                 throw UnsupportedOperationException("JVM unit test mock")
             }
             override fun release(bitmap: android.graphics.Bitmap) {}
-            override fun trim(level: Int) {}
+            override fun trimMemory(level: Int) {}
             override fun clear() {}
-            override fun poolSizeBytes(): Long = 0L
         }
         tileRenderer = PdfTileRenderer(mockBitmapPool)
     }
