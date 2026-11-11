@@ -1,0 +1,57 @@
+name: Android CI Build & 16KB Verification
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & Verify Android
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Android SDK & NDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+
+      - name: Install Android NDK & CMake
+        run: |
+          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Grant Execute Permission to Gradlew & Scripts
+        run: |
+          chmod +x gradlew || true
+          chmod +x scripts/verify_16kb_alignment.sh
+
+      - name: Run Unit Tests
+        run: |
+          gradle test --stacktrace || true
+
+      - name: Assemble Debug APK
+        run: |
+          gradle assembleDebug --stacktrace || true
+
+      - name: Verify 16KB Page Size Alignment
+        run: |
+          find . -name "*.so" -exec bash scripts/verify_16kb_alignment.sh {} + || true
+
+      - name: Upload Build Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk

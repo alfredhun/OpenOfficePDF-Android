@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 零云端依赖：绝不申请 INTERNET 权限 (任务书 1.1 节第 2 条) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".OpenOfficeApp"
+        android:allowBackup="false"
+        android:icon="@android:drawable/sym_def_app_icon"
+        android:label="@string/app_name"
+        android:roundIcon="@android:drawable/sym_def_app_icon"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
+        <!-- 主进程入口 Activity -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- SAF 与文档关联打开支持 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- 强制独立进程：Office 引擎隔离服务 (任务书 3.2 节) -->
+        <service
+            android:name="com.openofficepdf.engine.office.OfficeProcessService"
+            android:process=":office_engine"
+            android:exported="false" />
+
+        <!-- 默认独立进程：OCR 与 AI 推理服务 (任务书 3.2 节) -->
+        <service
+            android:name="com.openofficepdf.engine.ocr.OcrProcessService"
+            android:process=":ocr_engine"
+            android:exported="false" />
+
+    </application>
+
+</manifest>

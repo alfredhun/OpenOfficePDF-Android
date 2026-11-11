@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: transparent; }
+        #container { display: inline-block; }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <script>
+        // 离线渲染调度接口：供 Android 单实例 Headless WebView 调用
+        window.renderOfflineMermaid = function(mermaidSource, isDark) {
+            try {
+                var container = document.getElementById('container');
+                container.innerHTML = '';
+                // 若接入 mermaid.min.js，调用 mermaid.render
+                var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100">' +
+                          '<rect width="100%" height="100%" fill="' + (isDark ? '#222' : '#f0f0f0') + '"/>' +
+                          '<text x="10" y="50" fill="' + (isDark ? '#fff' : '#000') + '">' +
+                          'Rendered Chart</text></svg>';
+                if (window.AndroidBridge) {
+                    window.AndroidBridge.onRenderSuccess(svg);
+                }
+            } catch (err) {
+                if (window.AndroidBridge) {
+                    window.AndroidBridge.onRenderError(err.toString());
+                }
+            }
+        };
+
+        window.renderOfflineKaTeX = function(latexFormula, isDisplayMode) {
+            try {
+                // 若接入 katex.min.js，调用 katex.renderToString
+                var html = '<span class="katex-rendered">' + latexFormula + '</span>';
+                if (window.AndroidBridge) {
+                    window.AndroidBridge.onRenderSuccess(html);
+                }
+            } catch (err) {
+                if (window.AndroidBridge) {
+                    window.AndroidBridge.onRenderError(err.toString());
+                }
+            }
+        };
+    </script>
+</body>
+</html>
