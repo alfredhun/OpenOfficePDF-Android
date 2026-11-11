@@ -99,7 +99,7 @@ interface PdfEditEngine {
         pageIndex: Int,
         redactRegionsPt: List<RectF>,
         fillColorArgb: Int = 0xFF000000.toInt()
-    ): EngineResult<RedactionVerificationReport>
+    ): EngineResult<RedactionOutcome>
 
     suspend fun undo(sessionId: SessionId): EngineResult<EditStateSnapshot>
     suspend fun redo(sessionId: SessionId): EngineResult<EditStateSnapshot>

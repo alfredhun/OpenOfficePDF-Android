@@ -1,6 +1,9 @@
 package com.openofficepdf.core.storage
 
 import android.content.Context
+import com.openofficepdf.core.common.EngineErrorCode
+import com.openofficepdf.core.common.EngineResult
+import com.openofficepdf.core.model.SessionId
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -10,20 +13,22 @@ import java.util.concurrent.atomic.AtomicInteger
  * 沙盒临时文件与大对象 Blob 管理器 (任务书 4.4 节)
  * 具备引用计数 (Pin Count) 保护，防止活跃编辑被清理线程误删
  */
-class TemporaryFileManager(context: Context) {
+open class TemporaryFileManager(context: Context? = null) {
 
-    private val stagingDir = File(context.cacheDir, "staging").apply { mkdirs() }
-    private val workingCopyDir = File(context.cacheDir, "working_copies").apply { mkdirs() }
-    private val blobDir = File(context.filesDir, "blobs").apply { mkdirs() }
+    private val baseDir = context?.cacheDir ?: File(System.getProperty("java.io.tmpdir", "."), "openoffice_temp")
+    private val filesDir = context?.filesDir ?: File(System.getProperty("java.io.tmpdir", "."), "openoffice_files")
+    private val stagingDir = File(baseDir, "staging").apply { mkdirs() }
+    private val workingCopyDir = File(baseDir, "working_copies").apply { mkdirs() }
+    private val blobDir = File(filesDir, "blobs").apply { mkdirs() }
 
     // 路径 -> 活跃引用计数
     private val pinCounts = ConcurrentHashMap<String, AtomicInteger>()
 
-    fun pin(file: File) {
+    open fun pin(file: File) {
         pinCounts.computeIfAbsent(file.absolutePath) { AtomicInteger(0) }.incrementAndGet()
     }
 
-    fun unpin(file: File) {
+    open fun unpin(file: File) {
         pinCounts[file.absolutePath]?.let { counter ->
             if (counter.decrementAndGet() <= 0) {
                 pinCounts.remove(file.absolutePath)
@@ -31,24 +36,41 @@ class TemporaryFileManager(context: Context) {
         }
     }
 
-    fun isPinned(file: File): Boolean {
+    open fun isPinned(file: File): Boolean {
         return (pinCounts[file.absolutePath]?.get() ?: 0) > 0
     }
 
-    fun createStagingFile(sessionId: String): File {
+    open fun pinFile(file: File) = pin(file)
+    open fun unpinFile(file: File) = unpin(file)
+
+    open fun createStagingFile(sessionId: String): File {
         val file = File(stagingDir, "${sessionId}_${System.currentTimeMillis()}.tmp")
         pin(file)
         return file
     }
 
-    fun createWorkingCopyFile(sessionId: String, extension: String): File {
+    open fun createStagingCopy(sessionId: SessionId, prefix: String = "staging_"): EngineResult<File> {
+        return try {
+            val file = File(stagingDir, "${prefix}${sessionId.value}_${System.currentTimeMillis()}.tmp")
+            pin(file)
+            EngineResult.success(file)
+        } catch (e: Exception) {
+            EngineResult.failure(EngineErrorCode.IO_TRANSACTION_COMMIT_FAILED, "Failed to create staging copy: ${e.message}")
+        }
+    }
+
+    open fun getTemporaryFile(relativePath: String): File = File(stagingDir, relativePath)
+
+    open fun releaseSessionStaging(sessionId: SessionId): Long = 0L
+
+    open fun createWorkingCopyFile(sessionId: String, extension: String): File {
         val ext = if (extension.startsWith(".")) extension else ".$extension"
         val file = File(workingCopyDir, "${sessionId}_work$ext")
         pin(file)
         return file
     }
 
-    fun createBlobFile(documentId: String, blobId: String): File {
+    open fun createBlobFile(documentId: String, blobId: String): File {
         val file = File(blobDir, "${documentId}_$blobId.blob")
         return file
     }

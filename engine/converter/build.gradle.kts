@@ -24,6 +24,7 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:model"))
+    implementation(project(":core:database"))
     implementation(project(":core:storage"))
     implementation(project(":engine:pdf"))
     implementation(project(":engine:ocr"))

@@ -120,7 +120,7 @@ class MarkdownWorkspaceViewModel(
             )
 
             when (stageResult) {
-                is com.openofficepdf.core.common.EngineResult.Success -> {
+                is com.openofficepdf.core.common.EngineResult.Success<File> -> {
                     val stagingFile = stageResult.data
                     withContext(AppDispatchers.io) {
                         stagingFile.writeText(state.sourceContent, Charsets.UTF_8)

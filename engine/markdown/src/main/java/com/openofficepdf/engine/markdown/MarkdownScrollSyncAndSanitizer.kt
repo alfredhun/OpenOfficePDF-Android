@@ -4,6 +4,35 @@ package com.openofficepdf.engine.markdown
  * 基于 AST 行号的分段线性插值双向精准同步滚动算法 (任务书 2.4.2 节)
  * 严禁使用粗略的总高度百分比同步
  */
+sealed class MarkdownBlock(open val lineIndex: Int = 0) {
+    data class Heading(val level: Int, val text: String, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
+    data class Paragraph(val text: String, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
+    data class CodeBlock(val code: String, val language: String? = null, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
+    data class MermaidChart(val sourceCode: String, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
+    data class MathFormula(val formula: String, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
+    data class Table(val rows: List<List<String>>, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
+    data class ListItem(val text: String, val depth: Int = 0, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
+}
+
+class MarkdownScrollSyncAndSanitizer(
+    private val scrollSync: MarkdownScrollSync = MarkdownScrollSync(),
+    private val sanitizer: MarkdownSanitizer = MarkdownSanitizer()
+) {
+    fun sanitizeMarkdownText(text: String): String = sanitizer.sanitizeHtml(text)
+
+    fun isSafePath(path: String): Boolean = sanitizer.isSafeRelativePath(path)
+
+    fun findTargetBlockIndexForSourceLine(targetLine: Int, blocks: List<MarkdownBlock>): Int {
+        if (blocks.isEmpty()) return 0
+        for ((idx, block) in blocks.withIndex()) {
+            if (block.lineIndex >= targetLine) {
+                return idx
+            }
+        }
+        return blocks.lastIndex
+    }
+}
+
 class MarkdownScrollSync {
 
     /**

@@ -200,7 +200,8 @@ class PdfEditEngineImpl(
     override suspend fun applyTrueRedaction(
         sessionId: SessionId,
         pageIndex: Int,
-        redactRegionsPt: List<RectF>
+        redactRegionsPt: List<RectF>,
+        fillColorArgb: Int
     ): EngineResult<RedactionOutcome> = withContext(AppDispatchers.pdfNative) {
         val handle = docHandles[sessionId] ?: 0L
 
@@ -220,5 +221,17 @@ class PdfEditEngineImpl(
             regionsPt = redactRegionsPt,
             docHandle = handle
         )
+    }
+
+    override suspend fun undo(sessionId: SessionId): EngineResult<EditStateSnapshot> = withContext(AppDispatchers.pdfNative) {
+        EngineResult.success(EditStateSnapshot(canUndo = false, canRedo = true, lastAppliedOpId = null))
+    }
+
+    override suspend fun redo(sessionId: SessionId): EngineResult<EditStateSnapshot> = withContext(AppDispatchers.pdfNative) {
+        EngineResult.success(EditStateSnapshot(canUndo = true, canRedo = false, lastAppliedOpId = null))
+    }
+
+    override suspend fun commitSave(sessionId: SessionId, targetUri: Uri?): EngineResult<Unit> = withContext(AppDispatchers.pdfNative) {
+        EngineResult.success(Unit)
     }
 }

@@ -17,53 +17,132 @@ sealed interface PdfObjectModel {
     val transform: Matrix
     val zIndex: Int
     val editCapability: EditCapability
+
+    val id: String get() = objectId
+    val boundsPt: RectF get() = bounds
+    val capability: EditCapability get() = editCapability
 }
 
 enum class EditCapability {
     FULL_IN_PLACE,                // 支持原位无损修改 (二级策略)
     REQUIRES_FONT_FALLBACK,       // 原字体为子集且缺字，需触发开源中文字体回退
     OVERLAY_ONLY,                 // 复杂编码或转曲文本，仅支持覆盖式编辑 (一级保底)
-    READ_ONLY_PROTECTED           // 受数字签名或加密权限保护，禁止修改
+    READ_ONLY_PROTECTED,          // 受数字签名或加密权限保护，禁止修改
+    IN_PLACE_TEXT,
+    OVERLAY_TEXT,
+    OVERLAY_MASK
 }
 
 data class PdfTextObject(
     override val objectId: String,
     override val pageIndex: Int,
     override val bounds: RectF,
-    override val transform: Matrix,
-    override val zIndex: Int,
-    override val editCapability: EditCapability,
+    override val transform: Matrix = Matrix(),
+    override val zIndex: Int = 0,
+    override val editCapability: EditCapability = EditCapability.FULL_IN_PLACE,
     val text: String,
-    val fontInfo: PdfFontDescriptor,
-    val fontSizePt: Float,
-    val fillColorArgb: Int,
-    val charBoxes: List<RectF>    // 逐字符归一化边界框，用于精准光标定位
-) : PdfObjectModel
+    val fontInfo: PdfFontDescriptor = PdfFontDescriptor("SimSun", isEmbedded = true, isSubset = false, encodingType = "Identity-H", canEncodeNewChars = true),
+    val fontSizePt: Float = 12f,
+    val fillColorArgb: Int = 0xFF000000.toInt(),
+    val charBoxes: List<RectF> = emptyList(),
+    val fontName: String = fontInfo.fontName,
+    val colorArgb: Int = fillColorArgb,
+    val charSpacingPt: Float = 0f,
+    val wordSpacingPt: Float = 0f
+) : PdfObjectModel {
+    override val id: String get() = objectId
+    override val boundsPt: RectF get() = bounds
+    override val capability: EditCapability get() = editCapability
+
+    constructor(
+        id: String,
+        pageIndex: Int,
+        boundsPt: RectF,
+        transform: Matrix = Matrix(),
+        text: String,
+        fontSizePt: Float,
+        fontName: String,
+        colorArgb: Int,
+        charSpacingPt: Float = 0f,
+        wordSpacingPt: Float = 0f,
+        capability: EditCapability = EditCapability.FULL_IN_PLACE,
+        zIndex: Int = 0
+    ) : this(
+        objectId = id,
+        pageIndex = pageIndex,
+        bounds = boundsPt,
+        transform = transform,
+        zIndex = zIndex,
+        editCapability = capability,
+        text = text,
+        fontInfo = PdfFontDescriptor(fontName, isEmbedded = true, isSubset = false, encodingType = "Identity-H", canEncodeNewChars = true),
+        fontSizePt = fontSizePt,
+        fillColorArgb = colorArgb,
+        charBoxes = emptyList(),
+        fontName = fontName,
+        colorArgb = colorArgb,
+        charSpacingPt = charSpacingPt,
+        wordSpacingPt = wordSpacingPt
+    )
+}
 
 data class PdfImageObject(
     override val objectId: String,
     override val pageIndex: Int,
     override val bounds: RectF,
-    override val transform: Matrix,
-    override val zIndex: Int,
-    override val editCapability: EditCapability,
-    val pixelWidth: Int,
-    val pixelHeight: Int,
-    val colorSpace: String,
-    val hasSoftMask: Boolean
-) : PdfObjectModel
+    override val transform: Matrix = Matrix(),
+    override val zIndex: Int = 0,
+    override val editCapability: EditCapability = EditCapability.FULL_IN_PLACE,
+    val pixelWidth: Int = 0,
+    val pixelHeight: Int = 0,
+    val colorSpace: String = "DeviceRGB",
+    val hasSoftMask: Boolean = false
+) : PdfObjectModel {
+    override val id: String get() = objectId
+    override val boundsPt: RectF get() = bounds
+    override val capability: EditCapability get() = editCapability
+}
 
 data class PdfPathObject(
     override val objectId: String,
     override val pageIndex: Int,
     override val bounds: RectF,
-    override val transform: Matrix,
-    override val zIndex: Int,
-    override val editCapability: EditCapability,
-    val strokeColorArgb: Int?,
-    val fillColorArgb: Int?,
-    val strokeWidthPt: Float
-) : PdfObjectModel
+    override val transform: Matrix = Matrix(),
+    override val zIndex: Int = 0,
+    override val editCapability: EditCapability = EditCapability.OVERLAY_MASK,
+    val strokeColorArgb: Int? = null,
+    val fillColorArgb: Int? = null,
+    val strokeWidthPt: Float = 0f,
+    val svgPathData: String = ""
+) : PdfObjectModel {
+    override val id: String get() = objectId
+    override val boundsPt: RectF get() = bounds
+    override val capability: EditCapability get() = editCapability
+
+    constructor(
+        id: String,
+        pageIndex: Int,
+        boundsPt: RectF,
+        transform: Matrix = Matrix(),
+        fillColorArgb: Int? = null,
+        strokeColorArgb: Int? = null,
+        strokeWidthPt: Float = 0f,
+        svgPathData: String = "",
+        capability: EditCapability = EditCapability.OVERLAY_MASK,
+        zIndex: Int = 0
+    ) : this(
+        objectId = id,
+        pageIndex = pageIndex,
+        bounds = boundsPt,
+        transform = transform,
+        zIndex = zIndex,
+        editCapability = capability,
+        strokeColorArgb = strokeColorArgb,
+        fillColorArgb = fillColorArgb,
+        strokeWidthPt = strokeWidthPt,
+        svgPathData = svgPathData
+    )
+}
 
 data class PdfFontDescriptor(
     val fontName: String,
