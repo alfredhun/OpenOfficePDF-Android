@@ -14,6 +14,13 @@ sealed interface EngineResult<out T> {
     
     data object Cancelled : EngineResult<Nothing>
 
+    companion object {
+        fun <T> success(data: T): EngineResult<T> = Success(data)
+        fun failure(code: EngineErrorCode, message: String, cause: Throwable? = null): EngineResult<Nothing> =
+            Failure(code, message, cause)
+        fun cancelled(): EngineResult<Nothing> = Cancelled
+    }
+
     val isSuccess: Boolean
         get() = this is Success
 

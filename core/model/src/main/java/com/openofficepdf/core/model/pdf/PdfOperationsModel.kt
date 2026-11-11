@@ -11,8 +11,16 @@ data class SearchMatch(
 
 data class TextEditOutcome(
     val updatedObject: PdfTextObject,
-    val fontFallbackTriggered: Boolean,
-    val fallbackFontName: String?
+    val fontFallbackApplied: Boolean = false,
+    val missingGlyphs: List<Char> = emptyList(),
+    val fontFallbackTriggered: Boolean = fontFallbackApplied,
+    val fallbackFontName: String? = null
+)
+
+data class RedactionOutcome(
+    val sanitizedPageCount: Int,
+    val removedObjectCount: Int,
+    val verificationReport: RedactionVerificationReport
 )
 
 /**
