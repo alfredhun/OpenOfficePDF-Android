@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import com.openofficepdf.core.database.dao.DocumentDao
 import com.openofficepdf.core.database.dao.DocumentSessionDao
 import com.openofficepdf.core.database.dao.EditOperationDao
+import com.openofficepdf.core.database.dao.SessionAndEditDao
 import com.openofficepdf.core.database.dao.TaskDao
 import com.openofficepdf.core.database.entity.*
 
@@ -33,6 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun documentDao(): DocumentDao
     abstract fun documentSessionDao(): DocumentSessionDao
     abstract fun editOperationDao(): EditOperationDao
+    abstract fun sessionAndEditDao(): SessionAndEditDao
     abstract fun taskDao(): TaskDao
 
     companion object {

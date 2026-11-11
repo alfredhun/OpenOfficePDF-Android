@@ -3,7 +3,30 @@ package com.openofficepdf.core.database.dao
 import androidx.room.*
 import com.openofficepdf.core.database.entity.DocumentSessionEntity
 import com.openofficepdf.core.database.entity.EditOperationEntity
-import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface SessionAndEditDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSession(session: DocumentSessionEntity)
+
+    @Query("SELECT * FROM document_sessions WHERE session_id = :sessionId LIMIT 1")
+    suspend fun getSession(sessionId: String): DocumentSessionEntity?
+
+    @Query("UPDATE document_sessions SET is_dirty = :isDirty, has_unsaved_changes = :isDirty WHERE session_id = :sessionId")
+    suspend fun markSessionDirty(sessionId: String, isDirty: Boolean)
+
+    @Query("DELETE FROM document_sessions WHERE session_id = :sessionId")
+    suspend fun deleteSession(sessionId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEditOperation(operation: EditOperationEntity)
+
+    @Query("SELECT * FROM edit_operations WHERE session_id = :sessionId ORDER BY sequence_number ASC")
+    suspend fun getOperationsForSession(sessionId: String): List<EditOperationEntity>
+
+    @Query("DELETE FROM edit_operations WHERE session_id = :sessionId")
+    suspend fun deleteOperationsForSession(sessionId: String)
+}
 
 @Dao
 interface DocumentSessionDao {

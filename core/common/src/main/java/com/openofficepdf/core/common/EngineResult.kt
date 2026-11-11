@@ -10,7 +10,10 @@ sealed interface EngineResult<out T> {
         val code: EngineErrorCode,
         val message: String,
         val cause: Throwable? = null
-    ) : EngineResult<Nothing>
+    ) : EngineResult<Nothing> {
+        val errorCode: EngineErrorCode get() = code
+        val errorMessage: String get() = message
+    }
     
     data object Cancelled : EngineResult<Nothing>
 

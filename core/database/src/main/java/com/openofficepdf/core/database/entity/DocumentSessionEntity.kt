@@ -28,11 +28,14 @@ data class DocumentSessionEntity(
     @ColumnInfo(name = "document_id")
     val documentId: String,
     
-    @ColumnInfo(name = "engine_type")
-    val engineType: String,                    // PDF, OFFICE, MARKDOWN
+    @ColumnInfo(name = "engine_type", defaultValue = "OFFICE")
+    val engineType: String = "OFFICE",                    // PDF, OFFICE, MARKDOWN
     
     @ColumnInfo(name = "current_page", defaultValue = "0")
     val currentPage: Int = 0,
+
+    @ColumnInfo(name = "last_opened_page", defaultValue = "0")
+    val lastOpenedPage: Int = currentPage,
     
     @ColumnInfo(name = "zoom_scale", defaultValue = "1.0")
     val zoomScale: Float = 1.0f,
@@ -45,15 +48,24 @@ data class DocumentSessionEntity(
     
     @ColumnInfo(name = "editor_mode", defaultValue = "READ")
     val editorMode: String = "READ",           // READ, ANNOTATE, OBJECT_EDIT, SPLIT_PREVIEW
+
+    @ColumnInfo(name = "active_tool", defaultValue = "VIEW")
+    val activeTool: String = editorMode,
     
     @ColumnInfo(name = "staging_file_path")
     val stagingFilePath: String? = null,       // 未提交的沙盒工作副本路径
     
     @ColumnInfo(name = "has_unsaved_changes", defaultValue = "0")
     val hasUnsavedChanges: Boolean = false,
+
+    @ColumnInfo(name = "is_dirty", defaultValue = "0")
+    val isDirty: Boolean = hasUnsavedChanges,
+
+    @ColumnInfo(name = "created_at", defaultValue = "0")
+    val createdAt: Long = System.currentTimeMillis(),
     
-    @ColumnInfo(name = "last_active_at")
-    val lastActiveAt: Long,
+    @ColumnInfo(name = "last_active_at", defaultValue = "0")
+    val lastActiveAt: Long = System.currentTimeMillis(),
     
     @ColumnInfo(name = "recovery_state", defaultValue = "CLEAN")
     val recoveryState: String = "CLEAN"        // CLEAN, DIRTY, CRASH_RECOVERABLE
