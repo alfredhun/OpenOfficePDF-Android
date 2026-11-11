@@ -105,7 +105,7 @@ class ProcessCrashRecoveryCoordinatorTest {
 
         // 触发恢复并断言从数据库恢复的脏会话与未提交操作数
         val result = coordinator.restoreSessionState(sessionId)
-        assertTrue(result is EngineResult.Success)
+        assertTrue("Expected success but got failure: ${(result as? EngineResult.Failure)?.message}", result is EngineResult.Success)
         assertEquals(1, (result as EngineResult.Success).data)
     }
 }

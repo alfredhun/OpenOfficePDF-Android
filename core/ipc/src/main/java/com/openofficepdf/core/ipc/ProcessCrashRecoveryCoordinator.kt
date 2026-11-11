@@ -58,11 +58,27 @@ class ProcessCrashRecoveryCoordinator(
         }
     }
 
+    private fun logI(tag: String, message: String) {
+        try {
+            Log.i(tag, message)
+        } catch (_: Throwable) {
+            println("[$tag] $message")
+        }
+    }
+
+    private fun logE(tag: String, message: String) {
+        try {
+            Log.e(tag, message)
+        } catch (_: Throwable) {
+            System.err.println("[$tag] $message")
+        }
+    }
+
     /**
      * 当检测到底层 Native SIGSEGV 或 OOM 导致子进程身亡时触发
      */
     private fun handleSubprocessDeath() {
-        Log.e(TAG, "[$engineName] Subprocess killed! Starting self-healing and session rescue protocol...")
+        logE(TAG, "[$engineName] Subprocess killed! Starting self-healing and session rescue protocol...")
         _recoveryEvents.tryEmit(SubprocessRecoveryEvent.ProcessDied(engineName, System.currentTimeMillis()))
 
         scope.launch {
@@ -81,10 +97,10 @@ class ProcessCrashRecoveryCoordinator(
         try {
             connectionManager.unbindService()
             connectionManager.bindService()
-            Log.i(TAG, "[$engineName] Subprocess service re-bind request dispatched successfully.")
+            logI(TAG, "[$engineName] Subprocess service re-bind request dispatched successfully.")
             _recoveryEvents.emit(SubprocessRecoveryEvent.Reconnected(engineName))
         } catch (e: Exception) {
-            Log.e(TAG, "[$engineName] Failed to relaunch subprocess: ${e.message}")
+            logE(TAG, "[$engineName] Failed to relaunch subprocess: ${e.message}")
         }
     }
 
@@ -97,7 +113,7 @@ class ProcessCrashRecoveryCoordinator(
             // 查找未正常关闭的会话
             // 真实环境下由 sessionDao.getActiveSessions() 提供
             // 读取编辑操作日记栈并验证沙盒副本
-            Log.i(TAG, "[$engineName] Scanning Room database for uncommitted edit operations...")
+            logI(TAG, "[$engineName] Scanning Room database for uncommitted edit operations...")
             EngineResult.success(rescued)
         } catch (e: Exception) {
             EngineResult.failure(
@@ -119,7 +135,7 @@ class ProcessCrashRecoveryCoordinator(
                 )
 
             val operations = sessionDao.getOperationsForSession(sessionId.value)
-            Log.i(TAG, "Restored session ${sessionId.value}: found ${operations.size} pending operations.")
+            logI(TAG, "Restored session ${sessionId.value}: found ${operations.size} pending operations.")
 
             _recoveryEvents.emit(SubprocessRecoveryEvent.SessionRestored(sessionId, operations.size))
             EngineResult.success(operations.size)
