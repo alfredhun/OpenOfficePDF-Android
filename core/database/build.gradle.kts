@@ -23,12 +23,12 @@ android {
 }
 
 dependencies {
-    implementation(project(":core:common"))
-    implementation(project(":core:model"))
+    api(project(":core:common"))
+    api(project(":core:model"))
     
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
+    api(libs.androidx.room.runtime)
+    api(libs.androidx.room.ktx)
     kapt(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
