@@ -21,29 +21,28 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
 
       - name: Accept Android SDK Licenses & Install NDK/CMake
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Setup Gradle Wrapper Scripts
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Grant Execute Permission to Scripts
         run: |
-          gradle wrapper --gradle-version 8.7
-          chmod +x gradlew
           chmod +x scripts/verify_16kb_alignment.sh
 
       - name: Run Unit Tests
         run: |
-          ./gradlew test --stacktrace
+          gradle test --stacktrace --no-configuration-cache
 
       - name: Assemble Debug APK
         run: |
-          ./gradlew assembleDebug --stacktrace
+          gradle assembleDebug --stacktrace --no-configuration-cache
 
       - name: Verify 16KB Page Size Alignment
         run: |
