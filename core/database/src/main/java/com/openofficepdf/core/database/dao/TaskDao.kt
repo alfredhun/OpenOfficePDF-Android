@@ -26,8 +26,14 @@ interface TaskDao {
     @Query("SELECT * FROM ocr_tasks WHERE task_id = :taskId LIMIT 1")
     suspend fun getOcrTaskById(taskId: String): OcrTaskEntity?
 
+    @Query("SELECT * FROM ocr_tasks WHERE task_id = :taskId LIMIT 1")
+    suspend fun getOcrTask(taskId: String): OcrTaskEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateOcrTask(task: OcrTaskEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOcrTask(task: OcrTaskEntity)
 
     @Query("UPDATE ocr_tasks SET status = :status, progress = :progress, last_completed_page = :lastCompletedPage, updated_at = :updatedAt WHERE task_id = :taskId")
     suspend fun updateOcrProgress(taskId: String, status: String, progress: Float, lastCompletedPage: Int, updatedAt: Long)

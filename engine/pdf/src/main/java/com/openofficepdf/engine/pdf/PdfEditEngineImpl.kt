@@ -186,7 +186,7 @@ class PdfEditEngineImpl(
             )
 
         val updated = existing.copy(
-            boundsPt = newBoundsPt ?: existing.boundsPt,
+            bounds = newBoundsPt ?: existing.bounds,
             transform = newTransform ?: existing.transform
         )
         list[index] = updated
