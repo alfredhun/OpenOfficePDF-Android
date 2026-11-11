@@ -30,7 +30,7 @@ class BitmapPoolImpl(
         var bitmap = queue?.poll()
 
         while (bitmap != null && (bitmap.isRecycled || !bitmap.isMutable)) {
-            bitmap = queue.poll()
+            bitmap = queue?.poll()
         }
 
         if (bitmap != null) {
