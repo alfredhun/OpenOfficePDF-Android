@@ -136,8 +136,9 @@ class ExcelWorkspaceViewModel(
     private fun recalculateAllFormulas(sheet: SpreadsheetSheet): SpreadsheetSheet {
         val updatedCells = sheet.cells.toMutableMap()
         for ((coord, cell) in sheet.cells) {
-            if (cell.formula != null) {
-                val evaluated = formulaEvaluator.evaluateCellFormula(cell.formula, sheet)
+            val formula = cell.formula
+            if (formula != null) {
+                val evaluated = formulaEvaluator.evaluateCellFormula(formula, sheet)
                 updatedCells[coord] = cell.copy(displayValue = evaluated)
             }
         }

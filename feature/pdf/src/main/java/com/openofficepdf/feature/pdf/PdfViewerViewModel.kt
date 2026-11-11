@@ -196,6 +196,7 @@ class PdfViewerViewModel(
                 is EngineResult.Failure -> {
                     _uiState.value = _uiState.value.copy(errorMessage = result.errorMessage)
                 }
+                is EngineResult.Cancelled -> Unit
             }
         }
     }
@@ -242,6 +243,7 @@ class PdfViewerViewModel(
                 is EngineResult.Failure -> {
                     _uiState.value = _uiState.value.copy(errorMessage = "脱敏失败: ${result.errorMessage}")
                 }
+                is EngineResult.Cancelled -> Unit
             }
         }
     }
@@ -280,6 +282,7 @@ class PdfViewerViewModel(
                 is EngineResult.Failure -> {
                     _uiState.value = _uiState.value.copy(errorMessage = result.errorMessage)
                 }
+                is EngineResult.Cancelled -> Unit
             }
         }
     }

@@ -64,6 +64,9 @@ class WordWorkspaceViewModel(
                         errorMessage = "打开文档失败: ${result.errorMessage}"
                     )
                 }
+                else -> {
+                    _uiState.value = _uiState.value.copy(isLoading = false)
+                }
             }
         }
     }
@@ -138,6 +141,9 @@ class WordWorkspaceViewModel(
                 }
                 is EngineResult.Failure -> {
                     _uiState.value = _uiState.value.copy(isSaving = false, errorMessage = "保存失败: ${result.errorMessage}")
+                }
+                else -> {
+                    _uiState.value = _uiState.value.copy(isSaving = false)
                 }
             }
         }

@@ -71,6 +71,9 @@ class PresentationViewModel(
                         toastMessage = "打开 PPT 失败: ${result.errorMessage}"
                     )
                 }
+                else -> {
+                    _uiState.value = _uiState.value.copy(isLoading = false)
+                }
             }
         }
     }

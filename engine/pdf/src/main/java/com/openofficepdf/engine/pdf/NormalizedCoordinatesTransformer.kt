@@ -97,4 +97,46 @@ object NormalizedCoordinatesTransformer {
             (screenBounds.bottom + scrollOffsetY) / totalScale
         )
     }
+
+    /**
+     * UI 层视口便捷换算：点坐标转屏幕像素
+     */
+    fun normalizedPtToScreen(
+        boundsPt: RectF,
+        scale: Float,
+        viewportOffsetX: Float,
+        viewportOffsetY: Float,
+        dpiScale: Float = 1.0f
+    ): RectF {
+        return normalizedToScreenPixels(
+            normalizedBounds = boundsPt,
+            zoomScale = scale,
+            scrollOffsetX = -viewportOffsetX,
+            scrollOffsetY = -viewportOffsetY,
+            dpiScale = dpiScale
+        )
+    }
+
+    /**
+     * UI 层视口便捷换算：屏幕像素转点坐标
+     */
+    fun screenToNormalizedPt(
+        screenX: Float,
+        screenY: Float,
+        screenWidth: Float,
+        screenHeight: Float,
+        scale: Float,
+        viewportOffsetX: Float,
+        viewportOffsetY: Float,
+        dpiScale: Float = 1.0f
+    ): RectF {
+        val screenBounds = RectF(screenX, screenY, screenX + screenWidth, screenY + screenHeight)
+        return screenPixelsToNormalized(
+            screenBounds = screenBounds,
+            zoomScale = scale,
+            scrollOffsetX = -viewportOffsetX,
+            scrollOffsetY = -viewportOffsetY,
+            dpiScale = dpiScale
+        )
+    }
 }
