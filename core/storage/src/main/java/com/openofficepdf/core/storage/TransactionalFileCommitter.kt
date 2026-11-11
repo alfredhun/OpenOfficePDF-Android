@@ -21,7 +21,7 @@ import java.util.zip.ZipFile
  */
 open class TransactionalFileCommitter(
     private val context: Context? = null,
-    private val tempFileManager: TemporaryFileManager? = null
+    private val tempFileManager: TemporaryFileManager = TemporaryFileManager(context)
 ) {
 
     open suspend fun commitTransaction(

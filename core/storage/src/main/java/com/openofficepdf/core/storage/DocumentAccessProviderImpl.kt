@@ -16,7 +16,7 @@ import java.io.InputStream
 
 class DocumentAccessProviderImpl(
     private val context: Context,
-    private val tempFileManager: TemporaryFileManager? = null
+    private val tempFileManager: TemporaryFileManager = TemporaryFileManager(context)
 ) : DocumentAccessProvider {
 
     override fun openReadOnlyStream(uri: Uri): InputStream {
