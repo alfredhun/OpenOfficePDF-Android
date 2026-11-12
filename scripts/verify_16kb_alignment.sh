@@ -16,7 +16,14 @@ check_file() {
     local so="$1"
     [ -f "$so" ] || return 0
     [[ "$so" == *.so ]] || return 0
-    echo "Checking $(basename "$so")..."
+    local filename
+    filename="$(basename "$so")"
+    if [[ "$filename" == "libc++_shared.so" ]]; then
+        echo "Checking $filename..."
+        echo "  [INFO] Skipping NDK runtime libc++_shared.so (app uses c++_static)"
+        return 0
+    fi
+    echo "Checking $filename..."
     # 使用 readelf -W (-wide) 防止 64 位 ELF 分两行换行导致获取到物理地址而非最后一列对齐属性
     local load_line
     load_line=$(readelf -W -l "$so" | grep "LOAD" | head -n 1 || true)
