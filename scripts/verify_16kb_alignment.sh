@@ -17,12 +17,16 @@ check_file() {
     [ -f "$so" ] || return 0
     [[ "$so" == *.so ]] || return 0
     echo "Checking $(basename "$so")..."
-    # 使用 readelf 检查第一个 LOAD 段的页面对齐属性是否为 0x4000 (16384)
-    ALIGN=$(readelf -l "$so" | grep "LOAD" | head -n 1 | awk '{print $NF}' || true)
-    if [[ "$ALIGN" == "0x4000" ]] || [[ "$ALIGN" == "16384" ]]; then
-        echo "  [PASS] 16KB aligned ($ALIGN)"
+    # 使用 readelf -W (-wide) 防止 64 位 ELF 分两行换行导致获取到物理地址而非最后一列对齐属性
+    local load_line
+    load_line=$(readelf -W -l "$so" | grep "LOAD" | head -n 1 || true)
+    echo "  LOAD segment: $load_line"
+    local align
+    align=$(echo "$load_line" | awk '{print $NF}')
+    if [[ "$align" == "0x4000" ]] || [[ "$align" == "16384" ]] || [[ "$align" == "0x10000" ]] || [[ "$align" == "65536" ]]; then
+        echo "  [PASS] 16KB aligned ($align)"
     else
-        echo "  [FAIL] Not 16KB aligned (current: $ALIGN)!"
+        echo "  [FAIL] Not 16KB aligned (current: $align)!"
         FAILED=1
     fi
     CHECKED=$((CHECKED + 1))
