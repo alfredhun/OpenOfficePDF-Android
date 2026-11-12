@@ -13,6 +13,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+import com.openofficepdf.engine.office.openxml.DocxBlock
+import com.openofficepdf.engine.office.openxml.ParsedDocxDocument
+
 /**
  * 视图呈现模式
  */
@@ -24,6 +27,7 @@ enum class WordLayoutViewMode {
 data class WordWorkspaceUiState(
     val sessionId: SessionId? = null,
     val documentTitle: String = "未命名文档.docx",
+    val parsedDocx: ParsedDocxDocument? = null,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val isDirty: Boolean = false,
@@ -54,6 +58,7 @@ class WordWorkspaceViewModel(
                     officeEngine.setMobileReflowMode(session.sessionId, true)
                     _uiState.value = _uiState.value.copy(
                         sessionId = session.sessionId,
+                        parsedDocx = session.parsedDocx,
                         isLoading = false,
                         viewMode = WordLayoutViewMode.MOBILE_REFLOW
                     )

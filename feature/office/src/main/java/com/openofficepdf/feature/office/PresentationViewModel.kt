@@ -60,10 +60,32 @@ class PresentationViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true, documentTitle = title)
             when (val result = officeEngine.openSession(docId, uri)) {
                 is EngineResult.Success -> {
-                    _uiState.value = _uiState.value.copy(
-                        sessionId = result.data.sessionId,
-                        isLoading = false
-                    )
+                    val session = result.data
+                    val parsed = session.parsedPptx
+                    if (parsed != null && parsed.slides.isNotEmpty()) {
+                        val realSlides = parsed.slides.mapIndexed { idx, slide ->
+                            SlidePage(
+                                slideIndex = idx,
+                                title = slide.title,
+                                notes = slide.paragraphs.joinToString("\n"),
+                                widthPt = parsed.slideWidthPt,
+                                heightPt = parsed.slideHeightPt
+                            )
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            sessionId = session.sessionId,
+                            documentTitle = title,
+                            slides = realSlides,
+                            currentSlideIndex = 0,
+                            isLoading = false,
+                            toastMessage = "已加载 ${realSlides.size} 页幻灯片"
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(
+                            sessionId = session.sessionId,
+                            isLoading = false
+                        )
+                    }
                 }
                 is EngineResult.Failure -> {
                     _uiState.value = _uiState.value.copy(

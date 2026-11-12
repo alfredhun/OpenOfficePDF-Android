@@ -74,6 +74,19 @@ fun PresentationScreen(
                         }
                     },
                     actions = {
+                        val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+                            contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+                        ) { uri ->
+                            if (uri != null) {
+                                val title = uri.lastPathSegment?.substringAfterLast('/') ?: "演示文稿.pptx"
+                                viewModel.openPresentation(com.openofficepdf.core.model.DocumentId(uri.toString()), title, uri)
+                            }
+                        }
+
+                        IconButton(onClick = { launcher.launch(arrayOf("application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.ms-powerpoint", "*/*")) }) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = "打开演示文稿")
+                        }
+
                         // 批注画笔切换
                         IconButton(onClick = {
                             val nextMode = if (uiState.interactionMode == SlideInteractionMode.INK_PEN) {

@@ -67,6 +67,19 @@ fun ExcelWorkspaceScreen(
                     }
                 },
                 actions = {
+                    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+                        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+                    ) { uri ->
+                        if (uri != null) {
+                            val title = uri.lastPathSegment?.substringAfterLast('/') ?: "工作簿.xlsx"
+                            viewModel.openDocument(com.openofficepdf.core.model.DocumentId(uri.toString()), title, uri)
+                        }
+                    }
+
+                    IconButton(onClick = { launcher.launch(arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel", "*/*")) }) {
+                        Icon(Icons.Default.FolderOpen, contentDescription = "打开表格")
+                    }
+
                     IconButton(onClick = { viewModel.toggleFilter() }) {
                         Icon(
                             imageVector = Icons.Default.FilterList,

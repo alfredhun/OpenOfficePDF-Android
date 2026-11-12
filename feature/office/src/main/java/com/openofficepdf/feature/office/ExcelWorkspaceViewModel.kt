@@ -79,6 +79,42 @@ class ExcelWorkspaceViewModel(
         )
     }
 
+    fun openDocument(docId: DocumentId, title: String, uri: Uri) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, documentTitle = title)
+            when (val result = officeEngine.openSession(docId, uri)) {
+                is EngineResult.Success -> {
+                    val session = result.data
+                    val parsed = session.parsedXlsx
+                    if (parsed != null && parsed.sheets.isNotEmpty()) {
+                        _uiState.value = _uiState.value.copy(
+                            sessionId = session.sessionId,
+                            documentTitle = title,
+                            sheets = parsed.sheets,
+                            activeSheetIndex = 0,
+                            isLoading = false,
+                            toastMessage = "已加载 ${parsed.sheets.size} 个工作表"
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(
+                            sessionId = session.sessionId,
+                            isLoading = false
+                        )
+                    }
+                }
+                is EngineResult.Failure -> {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        toastMessage = "打开表格失败: ${result.errorMessage}"
+                    )
+                }
+                else -> {
+                    _uiState.value = _uiState.value.copy(isLoading = false)
+                }
+            }
+        }
+    }
+
     fun selectCell(row: Int, col: Int) {
         val currentSheet = _uiState.value.sheets.getOrNull(_uiState.value.activeSheetIndex) ?: return
         val cell = currentSheet.cells[row to col]

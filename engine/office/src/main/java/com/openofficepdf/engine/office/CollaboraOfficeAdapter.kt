@@ -13,14 +13,21 @@ import com.openofficepdf.core.model.SessionId
 import com.openofficepdf.core.storage.DocumentAccessProvider
 import com.openofficepdf.core.storage.TemporaryFileManager
 import com.openofficepdf.core.storage.TransactionalFileCommitter
+import com.openofficepdf.engine.office.openxml.DocxDocumentParser
+import com.openofficepdf.engine.office.openxml.ParsedDocxDocument
+import com.openofficepdf.engine.office.openxml.ParsedPptxDocument
+import com.openofficepdf.engine.office.openxml.ParsedXlsxDocument
+import com.openofficepdf.engine.office.openxml.PptxDocumentParser
+import com.openofficepdf.engine.office.openxml.XlsxDocumentParser
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 跨进程 Collabora / LibreOfficeKit 客户端适配器实现
- * 负责调度 `:office_engine` 独立进程
+ * 同时内置快速轻量级 OpenXML 本地离线解析能力
  */
 class CollaboraOfficeAdapter(
     private val storageProvider: DocumentAccessProvider,
@@ -38,7 +45,10 @@ class CollaboraOfficeAdapter(
         val originalUri: Uri?,
         val stagingFile: File,
         var isReflowEnabled: Boolean,
-        val nativeHandle: Int
+        val nativeHandle: Int,
+        var parsedDocx: ParsedDocxDocument? = null,
+        var parsedXlsx: ParsedXlsxDocument? = null,
+        var parsedPptx: ParsedPptxDocument? = null
     )
 
     override suspend fun openSession(
@@ -70,7 +80,40 @@ class CollaboraOfficeAdapter(
             }
         }
 
-        // 3. 模拟跨进程向 :office_engine 发起 openDocument
+        // 3. 真实解析 OpenXML 格式文档 (Word / Excel / PPT)
+        var parsedDocx: ParsedDocxDocument? = null
+        var parsedXlsx: ParsedXlsxDocument? = null
+        var parsedPptx: ParsedPptxDocument? = null
+
+        if (stagingFile.exists() && stagingFile.length() > 0) {
+            try {
+                FileInputStream(stagingFile).use { fis ->
+                    // 尝试作为 docx 解析
+                    parsedDocx = DocxDocumentParser.parse(fis, documentId.value)
+                }
+            } catch (e: Exception) {
+                // 忽略非 docx 错误
+            }
+
+            try {
+                FileInputStream(stagingFile).use { fis ->
+                    // 尝试作为 xlsx 解析
+                    parsedXlsx = XlsxDocumentParser.parse(fis, documentId.value)
+                }
+            } catch (e: Exception) {
+                // 忽略非 xlsx 错误
+            }
+
+            try {
+                FileInputStream(stagingFile).use { fis ->
+                    // 尝试作为 pptx 解析
+                    parsedPptx = PptxDocumentParser.parse(fis, documentId.value)
+                }
+            } catch (e: Exception) {
+                // 忽略非 pptx 错误
+            }
+        }
+
         val handle = 1001
         activeSessions[sessionId] = StagedOfficeSession(
             sessionId = sessionId,
@@ -78,7 +121,10 @@ class CollaboraOfficeAdapter(
             originalUri = fileUri,
             stagingFile = stagingFile,
             isReflowEnabled = false,
-            nativeHandle = handle
+            nativeHandle = handle,
+            parsedDocx = parsedDocx,
+            parsedXlsx = parsedXlsx,
+            parsedPptx = parsedPptx
         )
 
         // 4. 持久化会话记录到 Room 数据库
@@ -98,9 +144,24 @@ class CollaboraOfficeAdapter(
                 sessionId = sessionId,
                 documentId = documentId,
                 nativeDocHandle = handle,
-                isReflowSupported = true
+                isReflowSupported = true,
+                parsedDocx = parsedDocx,
+                parsedXlsx = parsedXlsx,
+                parsedPptx = parsedPptx
             )
         )
+    }
+
+    override suspend fun getParsedDocx(sessionId: SessionId): ParsedDocxDocument? {
+        return activeSessions[sessionId]?.parsedDocx
+    }
+
+    override suspend fun getParsedXlsx(sessionId: SessionId): ParsedXlsxDocument? {
+        return activeSessions[sessionId]?.parsedXlsx
+    }
+
+    override suspend fun getParsedPptx(sessionId: SessionId): ParsedPptxDocument? {
+        return activeSessions[sessionId]?.parsedPptx
     }
 
     override suspend fun setMobileReflowMode(
