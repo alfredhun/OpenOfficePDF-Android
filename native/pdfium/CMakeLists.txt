@@ -7,6 +7,7 @@ add_library(pdfium_bridge SHARED
     src/PdfiumBridge.cpp
     src/PdfiumObjectEditor.cpp
     src/PdfiumJni.cpp
+    src/PdfiumStubs.cpp
 )
 
 target_include_directories(pdfium_bridge PUBLIC
