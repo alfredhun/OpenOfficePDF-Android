@@ -40,9 +40,9 @@ jobs:
         run: |
           gradle test --stacktrace --no-configuration-cache
 
-      - name: Assemble Debug APK
+      - name: Assemble APKs (Debug & Release)
         run: |
-          gradle assembleDebug --stacktrace --no-configuration-cache
+          gradle assembleDebug assembleRelease --stacktrace --no-configuration-cache
 
       - name: Verify 16KB Page Size Alignment
         run: |
@@ -51,7 +51,7 @@ jobs:
       - name: Collect Generated APK Artifacts
         run: |
           mkdir -p artifacts
-          find . -name "*.apk" -exec cp -v {} artifacts/ \; || true
+          find app/build/outputs/apk/ -name "*.apk" -exec cp -v {} artifacts/ \; || true
           echo "Collected artifacts:"
           ls -lh artifacts/
 
@@ -59,6 +59,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
+          name: app-apks
           path: artifacts/
           if-no-files-found: warn
