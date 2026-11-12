@@ -78,27 +78,29 @@ class CollaboraOfficeAdapterTest {
     }
 
     @Test
-    fun testOpenSessionAndToggleReflow() = runBlocking {
-        val docId = DocumentId("doc_word_001")
-        val fileUri = Uri.EMPTY
+    fun testOpenSessionAndToggleReflow() {
+        runBlocking(kotlinx.coroutines.Dispatchers.Default) {
+            val docId = DocumentId("doc_word_001")
+            val fileUri = Uri.EMPTY
 
-        val openResult = adapter.openSession(docId, fileUri)
-        assertTrue(openResult is EngineResult.Success)
+            val openResult = adapter.openSession(docId, fileUri)
+            assertTrue(openResult is EngineResult.Success)
 
-        val session = (openResult as EngineResult.Success).data
-        assertEquals(docId, session.documentId)
-        assertTrue(session.isReflowSupported)
+            val session = (openResult as EngineResult.Success).data
+            assertEquals(docId, session.documentId)
+            assertTrue(session.isReflowSupported)
 
-        // 测试开启移动自适应视图
-        val reflowResult = adapter.setMobileReflowMode(session.sessionId, true)
-        assertTrue(reflowResult is EngineResult.Success)
+            // 测试开启移动自适应视图
+            val reflowResult = adapter.setMobileReflowMode(session.sessionId, true)
+            assertTrue(reflowResult is EngineResult.Success)
 
-        // 测试事务安全保存
-        val saveResult = adapter.saveSession(session.sessionId)
-        assertTrue(saveResult is EngineResult.Success)
+            // 测试事务安全保存
+            val saveResult = adapter.saveSession(session.sessionId)
+            assertTrue(saveResult is EngineResult.Success)
 
-        // 测试释放会话
-        val closeResult = adapter.closeSession(session.sessionId)
-        assertTrue(closeResult is EngineResult.Success)
+            // 测试释放会话
+            val closeResult = adapter.closeSession(session.sessionId)
+            assertTrue(closeResult is EngineResult.Success)
+        }
     }
 }
