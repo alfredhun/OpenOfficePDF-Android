@@ -29,6 +29,7 @@ void OfficeBridge::closeDocument(int docHandle) {
 }
 
 int OfficeBridge::getPartsCount(int docHandle) {
+    (void)docHandle;
     // Word 返回 1 (流式多页作为一个 Part)，Excel 返回 Sheet 数量
     return 1;
 }
@@ -48,6 +49,7 @@ bool OfficeBridge::renderTileToBuffer(
     void* pixelBuffer,
     int strideBytes
 ) {
+    (void)strideBytes;
     if (!pixelBuffer || params.canvasWidth <= 0 || params.canvasHeight <= 0) return false;
     LOGD("Render Office Tile: doc=%d, pos=[%d,%d], size=[%d,%d]",
          params.docHandle, params.tilePosX, params.tilePosY, params.canvasWidth, params.canvasHeight);

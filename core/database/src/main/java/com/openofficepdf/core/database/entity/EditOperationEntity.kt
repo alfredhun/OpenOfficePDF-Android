@@ -28,7 +28,8 @@ import androidx.room.PrimaryKey
         )
     ],
     indices = [
-        Index(value = ["session_id", "sequence_number"], name = "idx_edit_ops_session_seq")
+        Index(value = ["session_id", "sequence_number"], name = "idx_edit_ops_session_seq"),
+        Index(value = ["document_id"], name = "idx_edit_ops_document_id")
     ]
 )
 data class EditOperationEntity(
