@@ -35,7 +35,7 @@ class CollaboraOfficeAdapter(
     private data class StagedOfficeSession(
         val sessionId: SessionId,
         val documentId: DocumentId,
-        val originalUri: Uri,
+        val originalUri: Uri?,
         val stagingFile: File,
         var isReflowEnabled: Boolean,
         val nativeHandle: Int
@@ -43,7 +43,7 @@ class CollaboraOfficeAdapter(
 
     override suspend fun openSession(
         documentId: DocumentId,
-        fileUri: Uri
+        fileUri: Uri?
     ): EngineResult<OfficeSession> = withContext(AppDispatchers.io) {
         val sessionId = SessionId(UUID.randomUUID().toString())
 
@@ -54,18 +54,20 @@ class CollaboraOfficeAdapter(
         }
         val stagingFile = (stageResult as EngineResult.Success).data
 
-        // 2. 从 SAF 读取并写入暂存副本
-        try {
-            storageProvider.openReadOnlyStream(fileUri).use { input ->
-                stagingFile.outputStream().use { output ->
-                    input.copyTo(output)
+        // 2. 从 SAF 读取并写入暂存副本 (若有原始 URI)
+        if (fileUri != null) {
+            try {
+                storageProvider.openReadOnlyStream(fileUri).use { input ->
+                    stagingFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
                 }
+            } catch (e: Exception) {
+                return@withContext EngineResult.failure(
+                    EngineErrorCode.FILE_READ_FAILED,
+                    "Failed to copy file to staging sandbox: ${e.message}"
+                )
             }
-        } catch (e: Exception) {
-            return@withContext EngineResult.failure(
-                EngineErrorCode.FILE_READ_FAILED,
-                "Failed to copy file to staging sandbox: ${e.message}"
-            )
         }
 
         // 3. 模拟跨进程向 :office_engine 发起 openDocument
@@ -153,17 +155,20 @@ class CollaboraOfficeAdapter(
 
         // 1. 提交暂存文件完整性检查并原子更新原 SAF 文件
         val destUri = targetUri ?: session.originalUri
-        val commitResult = committer.commitTransaction(
-            sessionId = sessionId,
-            stagingFile = session.stagingFile,
-            destinationUri = destUri,
-            format = DocumentFormat.DOCX
-        )
-
-        if (commitResult is EngineResult.Success) {
-            sessionDao.markSessionDirty(sessionId.value, false)
+        if (destUri != null) {
+            val commitResult = committer.commitTransaction(
+                sessionId = sessionId,
+                stagingFile = session.stagingFile,
+                destinationUri = destUri,
+                format = DocumentFormat.DOCX
+            )
+            if (commitResult is EngineResult.Failure) {
+                return@withContext commitResult
+            }
         }
-        commitResult
+
+        sessionDao.markSessionDirty(sessionId.value, false)
+        EngineResult.success(Unit)
     }
 
     override suspend fun exportToPdf(

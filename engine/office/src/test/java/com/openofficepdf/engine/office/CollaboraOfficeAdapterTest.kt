@@ -81,28 +81,8 @@ class CollaboraOfficeAdapterTest {
     fun testOpenSessionAndToggleReflow() {
         runBlocking(kotlinx.coroutines.Dispatchers.Default) {
             val docId = DocumentId("doc_word_001")
-            val dummyUri = object : Uri() {
-                override fun isHierarchical(): Boolean = true
-                override fun isRelative(): Boolean = false
-                override fun getScheme(): String = "content"
-                override fun getSchemeSpecificPart(): String = "//test"
-                override fun getAuthority(): String = "test"
-                override fun getUserInfo(): String? = null
-                override fun getHost(): String = "test"
-                override fun getPort(): Int = -1
-                override fun getPath(): String = "/doc.docx"
-                override fun getQuery(): String? = null
-                override fun getFragment(): String? = null
-                override fun getPathSegments(): List<String> = listOf("doc.docx")
-                override fun getLastPathSegment(): String = "doc.docx"
-                override fun buildUpon(): Builder? = null
-                override fun describeContents(): Int = 0
-                override fun writeToParcel(dest: android.os.Parcel, flags: Int) {}
-                override fun compareTo(other: Uri?): Int = 0
-                override fun toString(): String = "content://test/doc.docx"
-            }
 
-            val openResult = adapter.openSession(docId, dummyUri)
+            val openResult = adapter.openSession(docId)
             assertTrue(openResult is EngineResult.Success)
 
             val session = (openResult as EngineResult.Success).data

@@ -16,7 +16,7 @@ data class OfficeSession(
  * Word 与 Excel 跨进程核心引擎接口 (任务书 7.3 节)
  */
 interface OfficeEngine {
-    suspend fun openSession(documentId: DocumentId, fileUri: Uri): EngineResult<OfficeSession>
+    suspend fun openSession(documentId: DocumentId, fileUri: Uri? = null): EngineResult<OfficeSession>
     suspend fun setMobileReflowMode(sessionId: SessionId, enabled: Boolean): EngineResult<Unit>
     suspend fun dispatchKeyEvent(sessionId: SessionId, keyCode: Int, unicodeChar: Int): EngineResult<Unit>
     suspend fun executeCommand(sessionId: SessionId, unoCommand: String, paramsJson: String): EngineResult<Unit>
