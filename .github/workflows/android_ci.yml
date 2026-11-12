@@ -46,11 +46,11 @@ jobs:
 
       - name: Verify 16KB Page Size Alignment
         run: |
-          find app/build -name "*.so" -exec bash scripts/verify_16kb_alignment.sh {} + || true
+          find app/build -name "*.so" -exec bash scripts/verify_16kb_alignment.sh {} +
 
       - name: Upload Build Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/**/*.apk

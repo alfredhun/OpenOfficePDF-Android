@@ -4,20 +4,20 @@
 
 set -euo pipefail
 
-SO_DIR="${1:-app/build/intermediates/stripped_native_libs/release/out/lib/arm64-v8a}"
-
-echo ">>> Scanning native shared libraries in $SO_DIR for 16KB page alignment..."
-
-if [ ! -d "$SO_DIR" ]; then
-    echo "Directory not found: $SO_DIR. Build native libraries first."
-    exit 0
+TARGETS=("$@")
+if [ ${#TARGETS[@]} -eq 0 ]; then
+    TARGETS=("app/build/intermediates/stripped_native_libs/release/out/lib/arm64-v8a")
 fi
 
 FAILED=0
-for so in "$SO_DIR"/*.so; do
-    [ -e "$so" ] || continue
+CHECKED=0
+
+check_file() {
+    local so="$1"
+    [ -f "$so" ] || return 0
+    [[ "$so" == *.so ]] || return 0
     echo "Checking $(basename "$so")..."
-    # 使用 readelf 或 llvm-objdump 检查 LOAD 段对齐属性是否为 0x4000 (16384)
+    # 使用 readelf 检查第一个 LOAD 段的页面对齐属性是否为 0x4000 (16384)
     ALIGN=$(readelf -l "$so" | grep "LOAD" | head -n 1 | awk '{print $NF}' || true)
     if [[ "$ALIGN" == "0x4000" ]] || [[ "$ALIGN" == "16384" ]]; then
         echo "  [PASS] 16KB aligned ($ALIGN)"
@@ -25,11 +25,29 @@ for so in "$SO_DIR"/*.so; do
         echo "  [FAIL] Not 16KB aligned (current: $ALIGN)!"
         FAILED=1
     fi
+    CHECKED=$((CHECKED + 1))
+}
+
+for item in "${TARGETS[@]}"; do
+    if [ -f "$item" ]; then
+        check_file "$item"
+    elif [ -d "$item" ]; then
+        echo ">>> Scanning directory $item..."
+        for f in "$item"/*.so; do
+            [ -e "$f" ] || continue
+            check_file "$f"
+        done
+    fi
 done
+
+if [ "$CHECKED" -eq 0 ]; then
+    echo ">>> Notice: No shared libraries were supplied for inspection."
+    exit 0
+fi
 
 if [ "$FAILED" -ne 0 ]; then
     echo ">>> Error: One or more native libraries failed the 16KB alignment requirement!"
     exit 1
 else
-    echo ">>> All native libraries passed 16KB alignment check."
+    echo ">>> All $CHECKED native library files passed 16KB alignment check."
 fi
