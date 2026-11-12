@@ -48,10 +48,17 @@ jobs:
         run: |
           find app/build -name "*.so" -exec bash scripts/verify_16kb_alignment.sh {} +
 
+      - name: Collect Generated APK Artifacts
+        run: |
+          mkdir -p artifacts
+          find . -name "*.apk" -exec cp -v {} artifacts/ \; || true
+          echo "Collected artifacts:"
+          ls -lh artifacts/
+
       - name: Upload Build Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: app/build/outputs/apk/
-          if-no-files-found: ignore
+          path: artifacts/
+          if-no-files-found: warn
