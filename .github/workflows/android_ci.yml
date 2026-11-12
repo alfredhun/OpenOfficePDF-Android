@@ -51,7 +51,7 @@ jobs:
       - name: Collect Generated APK Artifacts
         run: |
           mkdir -p artifacts
-          find app/build/outputs/apk/ -name "*.apk" -exec cp -v {} artifacts/ \; || true
+          find app/build -name "*.apk" -exec cp -v {} artifacts/ \; || true
           echo "Collected artifacts:"
           ls -lh artifacts/
 
@@ -60,5 +60,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-apks
-          path: artifacts/
-          if-no-files-found: warn
+          path: artifacts/*.apk
+          if-no-files-found: error
