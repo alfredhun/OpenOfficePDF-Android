@@ -80,7 +80,7 @@ class CollaboraOfficeAdapterTest {
     @Test
     fun testOpenSessionAndToggleReflow() = runBlocking {
         val docId = DocumentId("doc_word_001")
-        val fileUri = Uri.parse("content://mock/word.docx")
+        val fileUri = Uri.EMPTY
 
         val openResult = adapter.openSession(docId, fileUri)
         assertTrue(openResult is EngineResult.Success)
