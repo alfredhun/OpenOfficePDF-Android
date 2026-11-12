@@ -1,8 +1,8 @@
 package com.openofficepdf.engine.pdf
 
-import android.graphics.RectF
 import com.openofficepdf.core.memory.BitmapPool
 import com.openofficepdf.core.model.SessionId
+import com.openofficepdf.core.model.pdf.createRectF
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -32,7 +32,7 @@ class PdfTileRendererTest {
         val zoomScale = 1.0f // 1pt = 1px
 
         // 视口覆盖整页
-        val viewport = RectF(0f, 0f, 595.276f, 841.89f)
+        val viewport = createRectF(0f, 0f, 595.276f, 841.89f)
         val tiles = tileRenderer.computeVisibleTiles(
             pageIndex = 0,
             pageWidthPt = pageWidthPt,
@@ -63,7 +63,7 @@ class PdfTileRendererTest {
         val zoomScale = 2.0f // 缩放 2x，tile 512px 对应 256pt
 
         // 局部视口仅在右下角
-        val viewport = RectF(300f, 600f, 500f, 800f)
+        val viewport = createRectF(300f, 600f, 500f, 800f)
         val tiles = tileRenderer.computeVisibleTiles(
             pageIndex = 0,
             pageWidthPt = pageWidthPt,

@@ -1,11 +1,11 @@
 package com.openofficepdf.engine.pdf
 
 import android.graphics.Matrix
-import android.graphics.RectF
 import com.openofficepdf.core.common.EngineResult
 import com.openofficepdf.core.model.SessionId
 import com.openofficepdf.core.model.pdf.EditCapability
 import com.openofficepdf.core.model.pdf.PdfTextObject
+import com.openofficepdf.core.model.pdf.createRectF
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
@@ -34,7 +34,7 @@ class PdfInPlaceAndRedactionTest {
         val textObj = PdfTextObject(
             id = "txt_original",
             pageIndex = pageIndex,
-            boundsPt = RectF(100f, 100f, 250f, 120f),
+            boundsPt = createRectF(100f, 100f, 250f, 120f),
             transform = Matrix(),
             text = "原始文字",
             fontSizePt = 12f,
@@ -77,7 +77,7 @@ class PdfInPlaceAndRedactionTest {
         val secretObj = PdfTextObject(
             id = "txt_secret",
             pageIndex = pageIndex,
-            boundsPt = RectF(100f, 100f, 200f, 150f),
+            boundsPt = createRectF(100f, 100f, 200f, 150f),
             transform = Matrix(),
             text = "绝密账号密码: 123456",
             fontSizePt = 12f,
@@ -95,7 +95,7 @@ class PdfInPlaceAndRedactionTest {
         map[sessionId to pageIndex] = mutableListOf(secretObj)
 
         // 执行真 Redaction 脱敏 (相交区域)
-        val redactRegion = RectF(90f, 90f, 210f, 160f)
+        val redactRegion = createRectF(90f, 90f, 210f, 160f)
         val redactResult = editEngine.applyTrueRedaction(
             sessionId = sessionId,
             pageIndex = pageIndex,

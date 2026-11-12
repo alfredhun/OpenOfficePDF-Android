@@ -1,11 +1,11 @@
 package com.openofficepdf.engine.pdf
 
-import android.graphics.RectF
 import com.openofficepdf.core.common.EngineResult
 import com.openofficepdf.core.model.SessionId
 import com.openofficepdf.core.model.pdf.EditCapability
 import com.openofficepdf.core.model.pdf.PdfPathObject
 import com.openofficepdf.core.model.pdf.PdfTextObject
+import com.openofficepdf.core.model.pdf.createRectF
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
@@ -28,7 +28,7 @@ class PdfEditEngineImplTest {
     fun testApplyOverlayEdit_success() = runBlocking {
         val sessionId = SessionId("test_session_overlay")
         val pageIndex = 0
-        val targetRegion = RectF(100f, 200f, 300f, 250f)
+        val targetRegion = createRectF(100f, 200f, 300f, 250f)
         val maskColor = 0xFFFFFFFF.toInt()
         val textColor = 0xFF000000.toInt()
         val text = "这是覆盖测试文本"
@@ -63,7 +63,7 @@ class PdfEditEngineImplTest {
     @Test
     fun testApplyOverlayEdit_invalidRegionFails() = runBlocking {
         val sessionId = SessionId("test_session_empty")
-        val invalidRegion = RectF(0f, 0f, 0f, 0f)
+        val invalidRegion = createRectF(0f, 0f, 0f, 0f)
 
         val result = editEngine.applyOverlayEdit(
             sessionId = sessionId,

@@ -8,6 +8,7 @@ import com.openofficepdf.core.common.EngineErrorCode
 import com.openofficepdf.core.common.EngineResult
 import com.openofficepdf.core.memory.BitmapPool
 import com.openofficepdf.core.model.SessionId
+import com.openofficepdf.core.model.pdf.createRectF
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
@@ -138,7 +139,7 @@ class PdfTileRenderer(
                 val rightPt = (leftPt + tileWidthPt).coerceAtMost(pageWidthPt)
                 val bottomPt = (topPt + tileHeightPt).coerceAtMost(pageHeightPt)
 
-                val rectPt = RectF(leftPt, topPt, rightPt, bottomPt)
+                val rectPt = createRectF(leftPt, topPt, rightPt, bottomPt)
                 val key = TileKey(
                     sessionId = SessionId(""),
                     pageIndex = pageIndex,

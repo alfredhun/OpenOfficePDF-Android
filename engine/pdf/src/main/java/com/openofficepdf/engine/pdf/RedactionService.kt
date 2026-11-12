@@ -10,6 +10,8 @@ import com.openofficepdf.core.common.EngineResult
 import com.openofficepdf.core.model.SessionId
 import com.openofficepdf.core.model.pdf.RedactionOutcome
 import com.openofficepdf.core.model.pdf.RedactionVerificationReport
+import com.openofficepdf.core.model.pdf.safeHeight
+import com.openofficepdf.core.model.pdf.safeWidth
 import java.io.File
 
 /**
@@ -75,8 +77,8 @@ class RedactionService {
         redactRegionPt: RectF,
         fillColor: Int = Color.BLACK
     ): Bitmap {
-        val imgWidthPt = imageNormalizedBounds.width()
-        val imgHeightPt = imageNormalizedBounds.height()
+        val imgWidthPt = imageNormalizedBounds.safeWidth
+        val imgHeightPt = imageNormalizedBounds.safeHeight
         if (imgWidthPt <= 0 || imgHeightPt <= 0) return sourceBitmap
 
         val scaleX = sourceBitmap.width / imgWidthPt

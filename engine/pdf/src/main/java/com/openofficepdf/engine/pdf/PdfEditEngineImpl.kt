@@ -117,7 +117,7 @@ class PdfEditEngineImpl(
         fontSizePt: Float,
         textColorArgb: Int
     ): EngineResult<PdfObjectModel> = withContext(AppDispatchers.pdfNative) {
-        if (targetRegionPt.isEmpty || targetRegionPt.width() <= 0 || targetRegionPt.height() <= 0) {
+        if (targetRegionPt.isSafeEmpty || targetRegionPt.safeWidth <= 0 || targetRegionPt.safeHeight <= 0) {
             return@withContext EngineResult.failure(
                 EngineErrorCode.INVALID_PARAMETER,
                 "Target region for overlay edit must be a non-empty rectangle in Normalized Page Space"
@@ -131,7 +131,7 @@ class PdfEditEngineImpl(
         val maskObject = PdfPathObject(
             id = maskId,
             pageIndex = pageIndex,
-            boundsPt = RectF(targetRegionPt),
+            boundsPt = createRectF(targetRegionPt),
             transform = Matrix(),
             fillColorArgb = backgroundMaskColorArgb,
             strokeColorArgb = null,
@@ -147,7 +147,7 @@ class PdfEditEngineImpl(
         val textObject = PdfTextObject(
             id = textId,
             pageIndex = pageIndex,
-            boundsPt = RectF(targetRegionPt),
+            boundsPt = createRectF(targetRegionPt),
             transform = Matrix(),
             text = newText,
             fontSizePt = fontSizePt,
@@ -210,7 +210,7 @@ class PdfEditEngineImpl(
         if (list != null) {
             list.removeAll { obj ->
                 redactRegionsPt.any { reg ->
-                    RectF.intersects(obj.boundsPt, reg)
+                    obj.boundsPt.safeIntersects(reg)
                 }
             }
         }

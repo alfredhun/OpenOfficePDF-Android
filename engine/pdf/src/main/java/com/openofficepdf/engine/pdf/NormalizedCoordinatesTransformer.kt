@@ -2,6 +2,8 @@ package com.openofficepdf.engine.pdf
 
 import android.graphics.Matrix
 import android.graphics.RectF
+import com.openofficepdf.core.model.pdf.createRectF
+import com.openofficepdf.core.model.pdf.safeSort
 
 /**
  * 严格按照任务书 5.1 节执行的三级坐标转换契约实现:
@@ -22,7 +24,7 @@ object NormalizedCoordinatesTransformer {
         pageHeightPt: Float,
         rotationDeg: Int
     ): RectF {
-        val out = RectF()
+        val out = createRectF()
         when (rotationDeg % 360) {
             0 -> {
                 // 原点从左下角转为左上角: y_norm = pageHeight - y_raw_top
@@ -51,7 +53,7 @@ object NormalizedCoordinatesTransformer {
             }
         }
         // 确保 left < right, top < bottom
-        out.sort()
+        out.safeSort()
         return out
     }
 
@@ -71,7 +73,7 @@ object NormalizedCoordinatesTransformer {
         dpiScale: Float
     ): RectF {
         val totalScale = zoomScale * dpiScale
-        return RectF(
+        return createRectF(
             normalizedBounds.left * totalScale - scrollOffsetX,
             normalizedBounds.top * totalScale - scrollOffsetY,
             normalizedBounds.right * totalScale - scrollOffsetX,
@@ -90,7 +92,7 @@ object NormalizedCoordinatesTransformer {
         dpiScale: Float
     ): RectF {
         val totalScale = zoomScale * dpiScale
-        return RectF(
+        return createRectF(
             (screenBounds.left + scrollOffsetX) / totalScale,
             (screenBounds.top + scrollOffsetY) / totalScale,
             (screenBounds.right + scrollOffsetX) / totalScale,
@@ -130,7 +132,7 @@ object NormalizedCoordinatesTransformer {
         viewportOffsetY: Float,
         dpiScale: Float = 1.0f
     ): RectF {
-        val screenBounds = RectF(screenX, screenY, screenX + screenWidth, screenY + screenHeight)
+        val screenBounds = createRectF(screenX, screenY, screenX + screenWidth, screenY + screenHeight)
         return screenPixelsToNormalized(
             screenBounds = screenBounds,
             zoomScale = scale,

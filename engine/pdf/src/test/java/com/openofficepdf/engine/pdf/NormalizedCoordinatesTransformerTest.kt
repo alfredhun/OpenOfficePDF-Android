@@ -1,6 +1,6 @@
 package com.openofficepdf.engine.pdf
 
-import android.graphics.RectF
+import com.openofficepdf.core.model.pdf.createRectF
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -9,7 +9,7 @@ class NormalizedCoordinatesTransformerTest {
     @Test
     fun testUserSpaceToNormalized_0Deg() {
         // 页面高度 800 pt，原始文字处于 y=700..750 (靠近顶部)
-        val rawBounds = RectF(50f, 700f, 200f, 750f)
+        val rawBounds = createRectF(50f, 700f, 200f, 750f)
         val norm = NormalizedCoordinatesTransformer.userSpaceToNormalized(
             rawUserBounds = rawBounds,
             pageWidthPt = 600f,
@@ -25,7 +25,7 @@ class NormalizedCoordinatesTransformerTest {
 
     @Test
     fun testNormalizedToScreenPixels() {
-        val norm = RectF(10f, 20f, 110f, 120f)
+        val norm = createRectF(10f, 20f, 110f, 120f)
         val screen = NormalizedCoordinatesTransformer.normalizedToScreenPixels(
             normalizedBounds = norm,
             zoomScale = 2.0f,
