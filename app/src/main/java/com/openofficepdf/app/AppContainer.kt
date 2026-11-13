@@ -51,7 +51,8 @@ class AppContainer(context: Context) {
         storageProvider = storageProvider,
         tempFileManager = tempFileManager,
         committer = transactionalCommitter,
-        sessionDao = database.sessionAndEditDao()
+        sessionDao = database.sessionAndEditDao(),
+        documentDao = database.documentDao()
     )
 
     // Markdown 引擎层

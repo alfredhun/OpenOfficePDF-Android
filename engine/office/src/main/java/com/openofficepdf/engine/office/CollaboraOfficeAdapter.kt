@@ -33,7 +33,8 @@ class CollaboraOfficeAdapter(
     private val storageProvider: DocumentAccessProvider,
     private val tempFileManager: TemporaryFileManager,
     private val committer: TransactionalFileCommitter,
-    private val sessionDao: SessionAndEditDao
+    private val sessionDao: SessionAndEditDao,
+    private val documentDao: DocumentDao? = null
 ) : OfficeEngine {
 
     // 维护当前活跃的会话与暂存文件
@@ -127,17 +128,43 @@ class CollaboraOfficeAdapter(
             parsedPptx = parsedPptx
         )
 
-        // 4. 持久化会话记录到 Room 数据库
-        val sessionEntity = DocumentSessionEntity(
-            sessionId = sessionId.value,
-            documentId = documentId.value,
-            lastOpenedPage = 0,
-            activeTool = "VIEW",
-            isDirty = false,
-            createdAt = System.currentTimeMillis(),
-            lastActiveAt = System.currentTimeMillis()
-        )
-        sessionDao.insertSession(sessionEntity)
+        // 4. 确保主表 DocumentEntity 存在，满足外键约束
+        if (documentDao != null) {
+            try {
+                val existingDoc = documentDao.getDocumentById(documentId.value)
+                if (existingDoc == null) {
+                    val now = System.currentTimeMillis()
+                    val fallbackDoc = com.openofficepdf.core.database.entity.DocumentEntity(
+                        id = documentId.value,
+                        uri = fileUri?.toString() ?: "content://openofficepdf/${documentId.value}",
+                        displayName = fileUri?.lastPathSegment?.substringAfterLast('/') ?: "文档",
+                        mimeType = "application/octet-stream",
+                        format = "OFFICE",
+                        sizeBytes = stagingFile.length(),
+                        createdAt = now,
+                        modifiedAt = now,
+                        lastOpenedAt = now
+                    )
+                    documentDao.insertOrUpdate(fallbackDoc)
+                }
+            } catch (_: Exception) { }
+        }
+
+        // 5. 持久化会话记录到 Room 数据库
+        try {
+            val sessionEntity = DocumentSessionEntity(
+                sessionId = sessionId.value,
+                documentId = documentId.value,
+                lastOpenedPage = 0,
+                activeTool = "VIEW",
+                isDirty = false,
+                createdAt = System.currentTimeMillis(),
+                lastActiveAt = System.currentTimeMillis()
+            )
+            sessionDao.insertSession(sessionEntity)
+        } catch (_: Exception) {
+            // 避免因数据库约束等偶发异常阻塞前台打开文档
+        }
 
         EngineResult.success(
             OfficeSession(
