@@ -150,9 +150,9 @@ class PdfViewerViewModel(
         viewModelScope.launch {
             try {
                 storageProvider.openReadOnlyStream(uri).use { stream ->
-                    val textBlocks = PdfTextContentExtractor.extractTextFromPdfStream(stream, pageIndex)
+                    val textBlocks: List<com.openofficepdf.engine.ocr.OcrTextBlock> = PdfTextContentExtractor.extractTextFromPdfStream(stream, pageIndex)
                     if (textBlocks.isNotEmpty()) {
-                        val realObjects = textBlocks.mapIndexed { idx, block ->
+                        val realObjects = textBlocks.mapIndexed { idx: Int, block: com.openofficepdf.engine.ocr.OcrTextBlock ->
                             PdfTextObject(
                                 id = "real_txt_${pageIndex}_$idx",
                                 pageIndex = pageIndex,

@@ -35,6 +35,7 @@ dependencies {
     implementation(project(":core:storage"))
     implementation(project(":core:memory"))
     implementation(project(":engine:pdf"))
+    implementation(project(":engine:ocr"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
