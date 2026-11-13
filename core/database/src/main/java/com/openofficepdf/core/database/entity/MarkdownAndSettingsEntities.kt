@@ -52,6 +52,9 @@ data class MarkdownAssetEntity(
             childColumns = ["document_id"],
             onDelete = ForeignKey.CASCADE
         )
+    ],
+    indices = [
+        Index(value = ["document_id"], name = "idx_md_bookmarks_doc")
     ]
 )
 data class MarkdownBookmarkEntity(
