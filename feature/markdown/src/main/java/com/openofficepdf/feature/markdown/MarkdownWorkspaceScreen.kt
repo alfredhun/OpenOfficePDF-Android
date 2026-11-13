@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openofficepdf.core.model.DocumentId
 import com.openofficepdf.engine.markdown.*
-import com.openofficepdf.engine.markdown.MarkdownInlineParser
 import kotlinx.coroutines.launch
 
 /**

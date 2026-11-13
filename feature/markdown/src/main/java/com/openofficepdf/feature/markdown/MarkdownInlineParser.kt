@@ -1,4 +1,4 @@
-package com.openofficepdf.engine.markdown
+package com.openofficepdf.feature.markdown
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString

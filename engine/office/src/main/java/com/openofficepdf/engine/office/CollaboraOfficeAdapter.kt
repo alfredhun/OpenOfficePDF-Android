@@ -166,14 +166,14 @@ class CollaboraOfficeAdapter(
                 )
             )
         } catch (e: Exception) {
-            return EngineResult.failure(
+            return@withContext EngineResult.failure(
                 EngineErrorCode.DATABASE_ERROR,
                 "数据库会话落库失败 [code 787 防护拦截]: ${e.message}",
                 e
             )
         }
 
-        EngineResult.success(
+        return@withContext EngineResult.success(
             OfficeSession(
                 sessionId = sessionId,
                 documentId = documentId,
