@@ -55,6 +55,10 @@ class ProcessCrashRecoveryCoordinatorTest {
             override suspend fun deleteOperationsForSession(sessionId: String) {
                 ops.remove(sessionId)
             }
+            override suspend fun insertDocumentIgnore(document: com.openofficepdf.core.database.entity.DocumentEntity) {}
+            override suspend fun insertSessionIgnore(session: DocumentSessionEntity) {
+                sessions[session.sessionId] = session
+            }
         }
 
         mockTempFileManager = object : TemporaryFileManager() {

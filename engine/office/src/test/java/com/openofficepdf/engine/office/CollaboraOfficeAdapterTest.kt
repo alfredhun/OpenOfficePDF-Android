@@ -67,6 +67,8 @@ class CollaboraOfficeAdapterTest {
             override suspend fun insertEditOperation(operation: EditOperationEntity) {}
             override suspend fun getOperationsForSession(sessionId: String): List<EditOperationEntity> = emptyList()
             override suspend fun deleteOperationsForSession(sessionId: String) {}
+            override suspend fun insertDocumentIgnore(document: com.openofficepdf.core.database.entity.DocumentEntity) {}
+            override suspend fun insertSessionIgnore(session: DocumentSessionEntity) {}
         }
 
         adapter = CollaboraOfficeAdapter(
