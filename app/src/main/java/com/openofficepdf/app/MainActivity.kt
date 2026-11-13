@@ -156,7 +156,7 @@ class MainActivity : ComponentActivity() {
                                         currentRoute = "excel"
                                     }
                                     "pptx" -> {
-                                        pptViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
+                                        pptViewModel.openPresentation(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
                                         currentRoute = "ppt"
                                     }
                                     "markdown", "md" -> {
