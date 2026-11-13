@@ -31,9 +31,10 @@ import com.openofficepdf.engine.pdf.NormalizedCoordinatesTransformer
 
 /**
  * PDF 交互阅读器与三级编辑画板 (Jetpack Compose 原生构建)
- * - 真实 PDF 渲染：支持打开手机本地任意 PDF 并通过 AndroidPdfRenderer 光栅化位图呈现
+ * - 真实 PDF 渲染：支持打开手机本地任意 PDF 并通过 AndroidPdfRenderer 硬件加速光栅化呈现
+ * - 移动端响应式全屏铺满与缩放平移 (Fit Width / Fit Page)
  * - 一级策略：覆盖式编辑 (带未清除红线预警)
- * - 二级策略：内容流对象级原位编辑 (点选文字对象 -> 原位修改 -> 自动字体回退)
+ * - 二级策略：内容流对象级原位编辑 (点选文字对象 -> 原位修改 -> 实时重新排版)
  * - 真 Redaction 脱敏：物理移除相交文本流与涂黑位图
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,51 +82,13 @@ fun PdfViewerScreen(
                     }
                 },
                 actions = {
-                    // 打开本地 PDF
                     IconButton(onClick = { openPdfLauncher.launch(arrayOf("application/pdf")) }) {
-                        Icon(Icons.Default.FolderOpen, contentDescription = "打开本地PDF")
+                        Icon(Icons.Default.FolderOpen, contentDescription = "打开 PDF")
                     }
-
                     IconButton(onClick = { viewModel.toggleNightMode() }) {
                         Icon(
-                            imageVector = if (uiState.isNightMode) Icons.Default.Brightness7 else Icons.Default.Brightness4,
+                            imageVector = if (uiState.isNightMode) Icons.Default.LightMode else Icons.Default.DarkMode,
                             contentDescription = "夜间模式"
-                        )
-                    }
-
-                    // 二级原位编辑
-                    IconButton(onClick = {
-                        val next = if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) PdfInteractionMode.VIEW else PdfInteractionMode.IN_PLACE_EDIT
-                        viewModel.switchMode(next)
-                    }) {
-                        Icon(
-                            Icons.Default.TextFields,
-                            contentDescription = "二级原位编辑",
-                            tint = if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                        )
-                    }
-
-                    // 一级覆盖编辑
-                    IconButton(onClick = {
-                        val next = if (uiState.interactionMode == PdfInteractionMode.OVERLAY_EDIT) PdfInteractionMode.VIEW else PdfInteractionMode.OVERLAY_EDIT
-                        viewModel.switchMode(next)
-                    }) {
-                        Icon(
-                            Icons.Default.Layers,
-                            contentDescription = "一级覆盖编辑",
-                            tint = if (uiState.interactionMode == PdfInteractionMode.OVERLAY_EDIT) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                        )
-                    }
-
-                    // 真 Redaction 脱敏
-                    IconButton(onClick = {
-                        val next = if (uiState.interactionMode == PdfInteractionMode.TRUE_REDACTION) PdfInteractionMode.VIEW else PdfInteractionMode.TRUE_REDACTION
-                        viewModel.switchMode(next)
-                    }) {
-                        Icon(
-                            Icons.Default.Security,
-                            contentDescription = "真 Redaction 脱敏",
-                            tint = if (uiState.interactionMode == PdfInteractionMode.TRUE_REDACTION) MaterialTheme.colorScheme.error else LocalContentColor.current
                         )
                     }
                 }
@@ -133,11 +96,53 @@ fun PdfViewerScreen(
         },
         bottomBar = {
             Column {
-                // 翻页控制栏
+                // 模式切换工具栏
+                Surface(tonalElevation = 6.dp, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.VIEW) }) {
+                            Icon(
+                                Icons.Default.PanTool,
+                                contentDescription = "浏览模式",
+                                tint = if (uiState.interactionMode == PdfInteractionMode.VIEW) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            )
+                        }
+                        IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.IN_PLACE_EDIT) }) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "原位编辑",
+                                tint = if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            )
+                        }
+                        IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.OVERLAY_EDIT) }) {
+                            Icon(
+                                Icons.Default.Layers,
+                                contentDescription = "覆盖编辑",
+                                tint = if (uiState.interactionMode == PdfInteractionMode.OVERLAY_EDIT) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            )
+                        }
+                        IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.TRUE_REDACTION) }) {
+                            Icon(
+                                Icons.Default.Security,
+                                contentDescription = "真脱敏抹除",
+                                tint = if (uiState.interactionMode == PdfInteractionMode.TRUE_REDACTION) MaterialTheme.colorScheme.error else LocalContentColor.current
+                            )
+                        }
+                    }
+                }
+
+                // 翻页与辅助控制栏
                 if (uiState.pageCount > 1) {
                     Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 2.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -248,31 +253,33 @@ fun PdfViewerScreen(
                     color = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(8.dp),
-                    shape = MaterialTheme.shapes.small,
-                    shadowElevation = 4.dp
+                    shape = MaterialTheme.shapes.medium,
+                    shadowElevation = 6.dp
                 ) {
-                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(24.dp))
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "当前为视觉覆盖模式，底层原始文字并未从文件结构中物理清除；如需彻底抹除敏感信息，请使用【安全脱敏 (Redaction)】功能。",
+                            text = "安全合规警示：覆盖式编辑仅在视觉表面遮盖，底层原始内容流文字依然可被复制或提取。机密信息脱敏请务必使用“真脱敏抹除”功能！",
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.weight(1f)
                         )
                         IconButton(onClick = { viewModel.dismissOverlayWarning() }) {
-                            Icon(Icons.Default.Close, contentDescription = "关闭")
+                            Icon(Icons.Default.Close, contentDescription = "关闭提示")
                         }
                     }
                 }
             }
 
-            // 一级覆盖弹窗
-            if (showOverlayDraftDialog) {
+            // 覆盖编辑输入弹窗
+            if (showOverlayDraftDialog && uiState.activeOverlayDraft != null) {
                 OverlayDraftInputDialog(
-                    initialDraft = uiState.activeOverlayDraft ?: OverlayEditDraft(RectF()),
+                    initialDraft = uiState.activeOverlayDraft!!,
                     onDismiss = { showOverlayDraftDialog = false },
                     onConfirm = { text, fontSize, textColor, maskColor ->
-                        viewModel.updateOverlayDraftText(text, fontSize, textColor, maskColor)
                         viewModel.commitOverlayEdit()
                         showOverlayDraftDialog = false
                     }
@@ -280,20 +287,24 @@ fun PdfViewerScreen(
             }
 
             // 二级原位编辑弹窗
-            uiState.activeInPlaceDraft?.let { inPlaceDraft ->
+            uiState.activeInPlaceDraft?.let { draft ->
                 AlertDialog(
-                    onDismissRequest = { /* 取消 */ },
-                    title = { Text("原位修改文字对象 (二级策略)") },
+                    onDismissRequest = { viewModel.switchMode(PdfInteractionMode.VIEW) },
+                    title = { Text("原位修改文字内容") },
                     text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("原始文本: \"${inPlaceDraft.initialText}\"", fontSize = 12.sp, color = Color.Gray)
+                        Column {
+                            Text("原始文本: ${draft.initialText}", fontSize = 12.sp, color = Color.Gray)
+                            Spacer(modifier = Modifier.height(8.dp))
                             OutlinedTextField(
-                                value = inPlaceDraft.currentText,
-                                onValueChange = { viewModel.updateInPlaceText(it) },
-                                label = { Text("修改后文本") },
+                                value = draft.currentText,
+                                onValueChange = { viewModel.updateInPlaceEditText(it) },
+                                label = { Text("修改为") },
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Text("若原嵌入字体缺少新增汉字字符，系统将自动回退绑定内置开源思源中文字体。", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                            draft.fontFallbackWarning?.let { w ->
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(w, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                            }
                         }
                     },
                     confirmButton = {
@@ -324,13 +335,13 @@ fun PdfInteractiveCanvas(
     var dragStart by remember { mutableStateOf<Offset?>(null) }
     var dragEnd by remember { mutableStateOf<Offset?>(null) }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(uiState.interactionMode) {
                 if (uiState.interactionMode == PdfInteractionMode.VIEW) {
                     detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(0.5f, 5.0f)
+                        scale = (scale * zoom).coerceIn(0.5f, 6.0f)
                         offset += pan
                     }
                 } else if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) {
@@ -385,15 +396,30 @@ fun PdfInteractiveCanvas(
                 }
             }
     ) {
+        val screenWidthPx = constraints.maxWidth.toFloat()
+        val screenHeightPx = constraints.maxHeight.toFloat()
+
+        // 核心优化：自适应铺满屏幕计算 (Fit Width)
+        val rawW = if (uiState.rawPageWidthPt > 0) uiState.rawPageWidthPt else 595f
+        val rawH = if (uiState.rawPageHeightPt > 0) uiState.rawPageHeightPt else 842f
+
+        // 计算让 PDF 完美占满屏幕宽度的自适应比例
+        val fitWidthScale = if (rawW > 0) screenWidthPx / rawW else 1.0f
+
+        // 页面在屏幕上的实际绘制宽高
+        val effectiveScale = scale * fitWidthScale
+        val pageWidthPx = rawW * effectiveScale
+        val pageHeightPx = rawH * effectiveScale
+
+        // 默认让页面在屏幕水平居中
+        val pageLeft = offset.x + if (pageWidthPx < screenWidthPx) (screenWidthPx - pageWidthPx) / 2f else 0f
+        val pageTop = offset.y + if (pageHeightPx < screenHeightPx) (screenHeightPx - pageHeightPx) / 2f else 0f
+
         Canvas(modifier = Modifier.fillMaxSize()) {
             val bitmap = uiState.renderedBitmap
-            val pageWidthPx = if (bitmap != null) bitmap.width.toFloat() * scale else 595.276f * scale
-            val pageHeightPx = if (bitmap != null) bitmap.height.toFloat() * scale else 841.89f * scale
-            val pageLeft = offset.x
-            val pageTop = offset.y
 
             if (bitmap != null && !bitmap.isRecycled) {
-                // 绘制真实渲染得到的 PDF 页面位图
+                // 绘制真实渲染得到的 PDF 页面位图 (铺满视口)
                 drawImage(
                     image = bitmap.asImageBitmap(),
                     dstOffset = IntOffset(pageLeft.toInt(), pageTop.toInt()),
@@ -408,36 +434,44 @@ fun PdfInteractiveCanvas(
                 )
             }
 
-            // 绘制页面文字对象高亮框
+            // 绘制页面文字对象高亮框与原位编辑状态
             for (obj in uiState.pageObjects) {
                 val screenRect = NormalizedCoordinatesTransformer.normalizedPtToScreen(
                     boundsPt = obj.boundsPt,
-                    scale = scale,
-                    viewportOffsetX = offset.x,
-                    viewportOffsetY = offset.y
+                    scale = effectiveScale,
+                    viewportOffsetX = pageLeft,
+                    viewportOffsetY = pageTop
                 )
                 val highlightColor = if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) {
-                    Color.Green.copy(alpha = 0.25f)
+                    Color(0xFF4CAF50).copy(alpha = 0.35f)
                 } else {
-                    Color.LightGray.copy(alpha = 0.2f)
+                    Color.LightGray.copy(alpha = 0.15f)
                 }
                 drawRect(
                     color = highlightColor,
                     topLeft = Offset(screenRect.left, screenRect.top),
                     size = Size(screenRect.width(), screenRect.height())
                 )
+                if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) {
+                    drawRect(
+                        color = Color(0xFF2E7D32),
+                        topLeft = Offset(screenRect.left, screenRect.top),
+                        size = Size(screenRect.width(), screenRect.height()),
+                        style = Stroke(width = 1.dp.toPx())
+                    )
+                }
             }
 
             // 绘制已标记的真 Redaction 脱敏区域
             for (reg in uiState.selectedRedactRegions) {
                 val sRect = NormalizedCoordinatesTransformer.normalizedPtToScreen(
                     boundsPt = reg,
-                    scale = scale,
-                    viewportOffsetX = offset.x,
-                    viewportOffsetY = offset.y
+                    scale = effectiveScale,
+                    viewportOffsetX = pageLeft,
+                    viewportOffsetY = pageTop
                 )
                 drawRect(
-                    color = Color.Black.copy(alpha = 0.7f),
+                    color = Color.Black.copy(alpha = 0.85f),
                     topLeft = Offset(sRect.left, sRect.top),
                     size = Size(sRect.width(), sRect.height())
                 )

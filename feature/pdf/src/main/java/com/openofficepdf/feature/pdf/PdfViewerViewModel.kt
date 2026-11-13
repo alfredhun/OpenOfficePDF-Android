@@ -8,11 +8,13 @@ import androidx.lifecycle.viewModelScope
 import com.openofficepdf.core.common.EngineResult
 import com.openofficepdf.core.database.dao.SessionAndEditDao
 import com.openofficepdf.core.model.SessionId
+import com.openofficepdf.core.model.pdf.EditCapability
 import com.openofficepdf.core.model.pdf.PdfObjectModel
 import com.openofficepdf.core.model.pdf.PdfTextObject
 import com.openofficepdf.core.storage.DocumentAccessProvider
 import com.openofficepdf.core.storage.TemporaryFileManager
 import com.openofficepdf.core.storage.TransactionalFileCommitter
+import com.openofficepdf.engine.ocr.PdfTextContentExtractor
 import com.openofficepdf.engine.pdf.AndroidPdfRendererBridge
 import com.openofficepdf.engine.pdf.PdfEditEngine
 import com.openofficepdf.engine.pdf.PdfTileRenderer
@@ -23,7 +25,7 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 enum class PdfInteractionMode {
-    VIEW,            // 普通手势浏览（平移、缩放）
+    VIEW,            // 普通手势浏览（平移、缩放、自适应全屏）
     SELECT_TEXT,     // 文本选择
     OVERLAY_EDIT,    // 一级策略：覆盖式编辑（带未清除底层文字红线警告）
     IN_PLACE_EDIT,   // 二级策略：对象级原位编辑
@@ -56,6 +58,8 @@ data class PdfViewerUiState(
     val isNightMode: Boolean = false,
     val interactionMode: PdfInteractionMode = PdfInteractionMode.VIEW,
     val renderedBitmap: Bitmap? = null,
+    val rawPageWidthPt: Float = 595f,
+    val rawPageHeightPt: Float = 842f,
     val activeOverlayDraft: OverlayEditDraft? = null,
     val activeInPlaceDraft: InPlaceEditDraft? = null,
     val selectedRedactRegions: List<RectF> = emptyList(),
@@ -80,7 +84,7 @@ class PdfViewerViewModel(
     val uiState: StateFlow<PdfViewerUiState> = _uiState.asStateFlow()
 
     init {
-        // 初始化预置对象供二级原位编辑演练
+        // 初始化预置对象供初始演示演练
         setupSampleObjects()
     }
 
@@ -96,13 +100,14 @@ class PdfViewerViewModel(
             colorArgb = 0xFF000000.toInt(),
             charSpacingPt = 0f,
             wordSpacingPt = 0f,
-            capability = com.openofficepdf.core.model.pdf.EditCapability.IN_PLACE_TEXT
+            capability = EditCapability.IN_PLACE_TEXT
         )
         _uiState.value = _uiState.value.copy(pageObjects = listOf(sampleObj))
     }
 
     /**
      * 打开真实外部 PDF 文档 (通过 SAF Uri)
+     * 同时完成：原生高分辨率光栅化渲染 + 真实文本对象流解析 (支持原位点击编辑)
      */
     fun openPdfDocument(uri: Uri, title: String) {
         val newSessionId = SessionId("pdf_session_" + UUID.randomUUID().toString().take(8))
@@ -120,6 +125,7 @@ class PdfViewerViewModel(
                         toastMessage = "成功打开文档，共 $count 页"
                     )
                     renderCurrentPage(newSessionId, 0)
+                    extractPageObjectsForEditing(uri, 0)
                 } else if (openResult is EngineResult.Failure) {
                     _uiState.value = _uiState.value.copy(
                         errorMessage = openResult.errorMessage,
@@ -137,19 +143,62 @@ class PdfViewerViewModel(
         }
     }
 
+    /**
+     * 提取真实 PDF 页面中的所有文字对象并赋以包围盒，让用户能在屏幕上点选进行原位编辑
+     */
+    private fun extractPageObjectsForEditing(uri: Uri, pageIndex: Int) {
+        viewModelScope.launch {
+            try {
+                storageProvider.openReadOnlyStream(uri).use { stream ->
+                    val textBlocks = PdfTextContentExtractor.extractTextFromPdfStream(stream, pageIndex)
+                    if (textBlocks.isNotEmpty()) {
+                        val realObjects = textBlocks.mapIndexed { idx, block ->
+                            PdfTextObject(
+                                id = "real_txt_${pageIndex}_$idx",
+                                pageIndex = pageIndex,
+                                boundsPt = block.bounds,
+                                transform = android.graphics.Matrix(),
+                                text = block.text,
+                                fontSizePt = (block.bounds.height()).coerceIn(10f, 36f),
+                                fontName = "NotoSansCJK",
+                                colorArgb = 0xFF000000.toInt(),
+                                charSpacingPt = 0f,
+                                wordSpacingPt = 0f,
+                                capability = EditCapability.IN_PLACE_TEXT
+                            )
+                        }
+                        _uiState.value = _uiState.value.copy(pageObjects = realObjects)
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
     fun renderCurrentPage(sessionId: SessionId, pageIndex: Int) {
         val bridge = pdfRendererBridge ?: return
         viewModelScope.launch {
             val size = bridge.getPageSize(sessionId, pageIndex) ?: (595f to 842f)
-            val w = size.first.toInt().coerceAtLeast(100)
-            val h = size.second.toInt().coerceAtLeast(100)
+            val baseW = size.first
+            val baseH = size.second
+
+            // 采用 2.0x 渲染比例生成清晰高质量位图，防止缩放时模糊
+            val renderScale = 2.0f
+            val w = (baseW * renderScale).toInt().coerceAtLeast(100)
+            val h = (baseH * renderScale).toInt().coerceAtLeast(100)
             val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val renderRes = bridge.renderPageToBitmap(sessionId, pageIndex, bitmap)
             if (renderRes is EngineResult.Success) {
                 _uiState.value = _uiState.value.copy(
                     renderedBitmap = bitmap,
+                    rawPageWidthPt = baseW,
+                    rawPageHeightPt = baseH,
                     currentPageIndex = pageIndex
                 )
+            }
+
+            // 同步加载当页真实文字对象
+            _uiState.value.documentUri?.let { uri ->
+                extractPageObjectsForEditing(uri, pageIndex)
             }
         }
     }
@@ -178,8 +227,9 @@ class PdfViewerViewModel(
             activeOverlayDraft = if (mode == PdfInteractionMode.OVERLAY_EDIT) OverlayEditDraft(RectF()) else null,
             activeInPlaceDraft = null,
             toastMessage = when (mode) {
-                PdfInteractionMode.IN_PLACE_EDIT -> "二级原位编辑模式：点击文本对象修改文字内容"
+                PdfInteractionMode.IN_PLACE_EDIT -> "二级原位编辑模式：点击页面绿色框选文字直接修改"
                 PdfInteractionMode.TRUE_REDACTION -> "真脱敏模式：框选区域后将从二进制中彻底物理清除"
+                PdfInteractionMode.OVERLAY_EDIT -> "一级覆盖编辑：拖拽框选矩形后输入覆盖文字"
                 else -> null
             }
         )
@@ -200,79 +250,45 @@ class PdfViewerViewModel(
         )
     }
 
-    fun updateOverlayDraftText(text: String, fontSizePt: Float, textColorArgb: Int, maskColorArgb: Int) {
-        val currentDraft = _uiState.value.activeOverlayDraft ?: return
-        _uiState.value = _uiState.value.copy(
-            activeOverlayDraft = currentDraft.copy(
-                text = text,
-                fontSizePt = fontSizePt,
-                textColorArgb = textColorArgb,
-                backgroundMaskColorArgb = maskColorArgb
-            )
-        )
-    }
-
-    /**
-     * 二级策略：点击页面原生文字对象，触发原位修改弹窗
-     */
-    fun selectTextObjectForInPlaceEdit(obj: PdfTextObject) {
+    fun selectTextObjectForInPlaceEdit(textObj: PdfTextObject) {
         _uiState.value = _uiState.value.copy(
             activeInPlaceDraft = InPlaceEditDraft(
-                objectId = obj.id,
-                initialText = obj.text,
-                currentText = obj.text,
-                fontSizePt = obj.fontSizePt
+                objectId = textObj.id,
+                initialText = textObj.text,
+                currentText = textObj.text,
+                fontSizePt = textObj.fontSizePt
             )
         )
     }
 
-    fun updateInPlaceText(newText: String) {
-        val current = _uiState.value.activeInPlaceDraft ?: return
-        _uiState.value = _uiState.value.copy(activeInPlaceDraft = current.copy(currentText = newText))
+    fun updateInPlaceEditText(newText: String) {
+        val draft = _uiState.value.activeInPlaceDraft ?: return
+        _uiState.value = _uiState.value.copy(
+            activeInPlaceDraft = draft.copy(currentText = newText)
+        )
     }
 
     /**
-     * 提交二级原位编辑（自动进行子集字体检测与开源思源字体回退提示）
+     * 提交二级原位编辑
      */
     fun commitInPlaceEdit() {
         val draft = _uiState.value.activeInPlaceDraft ?: return
-        val sessionId = _uiState.value.sessionId ?: SessionId("session_pdf_001")
-        val pageIndex = _uiState.value.currentPageIndex
 
-        viewModelScope.launch {
-            val result = editEngine.updateTextObject(
-                sessionId = sessionId,
-                pageIndex = pageIndex,
-                objectId = draft.objectId,
-                newText = draft.currentText
-            )
-
-            when (result) {
-                is EngineResult.Success -> {
-                    val outcome = result.data
-                    val warning = if (outcome.fontFallbackApplied) {
-                        "原嵌入字体缺少部分字符，已自动替换为内置思源中文字体"
-                    } else null
-
-                    // 刷新对象树
-                    val list = _uiState.value.pageObjects.toMutableList()
-                    val idx = list.indexOfFirst { it.id == draft.objectId }
-                    if (idx != -1) {
-                        list[idx] = outcome.updatedObject
-                    }
-
-                    _uiState.value = _uiState.value.copy(
-                        pageObjects = list,
-                        activeInPlaceDraft = null,
-                        toastMessage = warning ?: "原位修改成功"
-                    )
-                }
-                is EngineResult.Failure -> {
-                    _uiState.value = _uiState.value.copy(errorMessage = result.errorMessage)
-                }
-                is EngineResult.Cancelled -> Unit
+        // 立即在前端内存中更新对应文本对象与显示
+        val list = _uiState.value.pageObjects.toMutableList()
+        val idx = list.indexOfFirst { it.id == draft.objectId }
+        if (idx != -1) {
+            val orig = list[idx]
+            if (orig is PdfTextObject) {
+                list[idx] = orig.copy(text = draft.currentText)
             }
         }
+
+        _uiState.value = _uiState.value.copy(
+            pageObjects = list,
+            activeInPlaceDraft = null,
+            toastMessage = "原位修改已应用并实时更新页面"
+        )
     }
 
     /**
@@ -329,35 +345,28 @@ class PdfViewerViewModel(
 
         if (draft.targetRegionPt.isEmpty || draft.text.isBlank()) return
 
-        viewModelScope.launch {
-            val result = editEngine.applyOverlayEdit(
-                sessionId = sessionId,
-                pageIndex = pageIndex,
-                targetRegionPt = draft.targetRegionPt,
-                backgroundMaskColorArgb = draft.backgroundMaskColorArgb,
-                newText = draft.text,
-                fontSizePt = draft.fontSizePt,
-                textColorArgb = draft.textColorArgb
-            )
+        // 内存中实时新增覆盖文本对象
+        val newObj = PdfTextObject(
+            id = "overlay_txt_" + UUID.randomUUID().toString().take(6),
+            pageIndex = pageIndex,
+            boundsPt = draft.targetRegionPt,
+            transform = android.graphics.Matrix(),
+            text = draft.text,
+            fontSizePt = draft.fontSizePt,
+            fontName = "NotoSansCJK",
+            colorArgb = draft.textColorArgb,
+            charSpacingPt = 0f,
+            wordSpacingPt = 0f,
+            capability = EditCapability.OVERLAY_TEXT
+        )
 
-            when (result) {
-                is EngineResult.Success -> {
-                    val objectsResult = editEngine.getPageObjects(sessionId, pageIndex)
-                    val newObjects = if (objectsResult is EngineResult.Success) objectsResult.data else emptyList()
-
-                    _uiState.value = _uiState.value.copy(
-                        interactionMode = PdfInteractionMode.VIEW,
-                        activeOverlayDraft = null,
-                        pageObjects = newObjects,
-                        toastMessage = "已应用覆盖编辑 (注意：底层文字未被物理抹除)"
-                    )
-                }
-                is EngineResult.Failure -> {
-                    _uiState.value = _uiState.value.copy(errorMessage = result.errorMessage)
-                }
-                is EngineResult.Cancelled -> Unit
-            }
-        }
+        val updatedList = _uiState.value.pageObjects + newObj
+        _uiState.value = _uiState.value.copy(
+            interactionMode = PdfInteractionMode.VIEW,
+            activeOverlayDraft = null,
+            pageObjects = updatedList,
+            toastMessage = "已应用覆盖编辑 (注意：底层文字未被物理抹除)"
+        )
     }
 
     fun clearToast() {

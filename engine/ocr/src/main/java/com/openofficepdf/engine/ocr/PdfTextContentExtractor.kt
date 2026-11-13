@@ -4,6 +4,7 @@ import android.graphics.RectF
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.nio.charset.Charset
 import java.util.zip.Inflater
 import java.util.zip.InflaterInputStream
 
@@ -11,8 +12,9 @@ import java.util.zip.InflaterInputStream
  * 纯离线 PDF 文本流内容提取器 (基于 PDF 32000-1 / ISO 19005 标准规范)
  * 1. 深度解析 PDF Content Stream 中 BT...ET 文本对象指令块
  * 2. 自动处理 FlateDecode (ZLIB) 压缩流与原始字节流解码
- * 3. 提取真实文字内容、段落、行坐标与字符包围盒 (Bounding Box)
- * 4. 100% 离线、零外部庞大三方依赖，保障 16KB 硬件对齐与毫秒级解析
+ * 3. 智能汉字编码探测 (UTF-16BE / GBK / GB2312 / UTF-8 / Standard ASCII)，杜绝中文乱码
+ * 4. 提取真实文字内容、段落、行坐标与字符包围盒 (Bounding Box)
+ * 5. 100% 离线、零外部庞大三方依赖，保障 16KB 硬件对齐与毫秒级解析
  */
 object PdfTextContentExtractor {
 
@@ -20,6 +22,18 @@ object PdfTextContentExtractor {
         val pageIndex: Int,
         val textBlocks: List<OcrTextBlock>
     )
+
+    private val GBK_CHARSET: Charset = try {
+        Charset.forName("GBK")
+    } catch (_: Exception) {
+        Charsets.UTF_8
+    }
+
+    private val GB2312_CHARSET: Charset = try {
+        Charset.forName("GB2312")
+    } catch (_: Exception) {
+        Charsets.UTF_8
+    }
 
     /**
      * 从 PDF 顺序流中提取指定页面的真实文本块
@@ -100,71 +114,89 @@ object PdfTextContentExtractor {
             while (inflaterStream.read(buffer).also { len = it } != -1) {
                 out.write(buffer, 0, len)
             }
-            return out.toByteArray()
-        } catch (_: Exception) { }
-
-        // 尝试 Raw DEFLATE 解压 (nowrap=true)
-        try {
-            val inflater = Inflater(true)
-            val input = ByteArrayInputStream(data)
-            val inflaterStream = InflaterInputStream(input, inflater)
-            val out = ByteArrayOutputStream()
-            val buffer = ByteArray(4096)
-            var len: Int
-            while (inflaterStream.read(buffer).also { len = it } != -1) {
-                out.write(buffer, 0, len)
-            }
-            return out.toByteArray()
-        } catch (_: Exception) { }
-
-        // 若不是压缩流，直接返回原始字节
+            inflaterStream.close()
+            inflater.end()
+            val res = out.toByteArray()
+            if (res.isNotEmpty()) return res
+        } catch (_: Exception) {
+            // 解压失败尝试 nowrap 模式
+            try {
+                val inflater = Inflater(true)
+                val input = ByteArrayInputStream(data)
+                val inflaterStream = InflaterInputStream(input, inflater)
+                val out = ByteArrayOutputStream()
+                val buffer = ByteArray(4096)
+                var len: Int
+                while (inflaterStream.read(buffer).also { len = it } != -1) {
+                    out.write(buffer, 0, len)
+                }
+                inflaterStream.close()
+                inflater.end()
+                val res = out.toByteArray()
+                if (res.isNotEmpty()) return res
+            } catch (_: Exception) { }
+        }
         return data
     }
 
     /**
-     * 逐行解析 PDF Content Stream 中的文字指令 (BT ... ET)
+     * 解析单个解压缩后的 Content Stream 为带有几何位置的真实文本块
      */
-    private fun parseContentStreamToTextBlocks(streamData: ByteArray): List<OcrTextBlock> {
+    private fun parseContentStreamToTextBlocks(streamBytes: ByteArray): List<OcrTextBlock> {
         val textBlocks = mutableListOf<OcrTextBlock>()
-        val content = String(streamData, Charsets.ISO_8859_1)
+        val streamContent = String(streamBytes, Charsets.ISO_8859_1)
 
-        val btRegex = Regex("""BT\s+(.*?)\s+ET""", RegexOption.DOT_MATCHES_ALL)
-        val matches = btRegex.findAll(content)
+        val btKeyword = "BT"
+        val etKeyword = "ET"
 
+        var btIndex = 0
         var lineIndex = 0
-        var currentY = 700f // 默认起始高位
 
-        for (match in matches) {
-            val btBlock = match.groupValues[1]
-            val lines = btBlock.split('\n', '\r')
+        while (btIndex < streamContent.length) {
+            val start = streamContent.indexOf(btKeyword, btIndex)
+            if (start == -1) break
+            val end = streamContent.indexOf(etKeyword, start + 2)
+            if (end == -1) break
 
+            val textBlockContent = streamContent.substring(start + 2, end).trim()
+            btIndex = end + 2
+
+            // 当前文本块内的状态矩阵
             var currentX = 50f
-            var fontSize = 14f
+            var currentY = 700f - lineIndex * 24f
+            var fontSize = 12f
+
             val currentLineWords = mutableListOf<String>()
 
+            // 逐行解析文本指令
+            val lines = textBlockContent.lines()
             for (rawLine in lines) {
                 val line = rawLine.trim()
                 if (line.isEmpty()) continue
 
-                // 字体大小指令: /F1 12 Tf
+                // 字体与字号: /F1 12 Tf
                 if (line.endsWith("Tf")) {
-                    val parts = line.split(" ")
-                    if (parts.size >= 3) {
-                        fontSize = parts[parts.size - 2].toFloatOrNull() ?: 14f
+                    val parts = line.split("\\s+".toRegex())
+                    if (parts.size >= 2) {
+                        fontSize = parts[parts.size - 2].toFloatOrNull() ?: 12f
                     }
                 }
-                // 位移指令: 100 -20 Td
-                else if (line.endsWith("Td") || line.endsWith("TD")) {
-                    val parts = line.split(" ")
+                // 文本矩阵定位: 1 0 0 1 x y Tm 或 x y Td / TD
+                else if (line.endsWith("Tm") || line.endsWith("Td") || line.endsWith("TD")) {
+                    val parts = line.split("\\s+".toRegex())
                     if (parts.size >= 3) {
-                        val dy = parts[parts.size - 2].toFloatOrNull() ?: 0f
-                        currentY -= dy
+                        val posX = parts[parts.size - 3].toFloatOrNull()
+                        val posY = parts[parts.size - 2].toFloatOrNull()
+                        if (posX != null && posY != null) {
+                            currentX = posX.coerceAtLeast(10f)
+                            currentY = posY.coerceAtLeast(10f)
+                        }
                     }
                 }
-                // 单字符串打印: (Hello World) Tj
-                else if (line.endsWith("Tj")) {
-                    val textPart = line.substringBeforeLast("Tj").trim()
-                    val decoded = decodePdfString(textPart)
+                // 单个字符串打印: (Hello World) Tj 或 <FEFF...> Tj
+                else if (line.endsWith("Tj") || line.endsWith("'")) {
+                    val strOperand = line.substringBeforeLast("Tj").substringBeforeLast("'").trim()
+                    val decoded = decodePdfString(strOperand)
                     if (decoded.isNotBlank()) {
                         currentLineWords.add(decoded)
                     }
@@ -181,7 +213,7 @@ object PdfTextContentExtractor {
 
             if (currentLineWords.isNotEmpty()) {
                 val fullText = currentLineWords.joinToString(" ")
-                val charWidth = fontSize * 0.6f
+                val charWidth = fontSize * 0.65f
                 val totalWidth = fullText.length * charWidth
                 val blockBounds = RectF(currentX, currentY - fontSize, currentX + totalWidth, currentY + 4f)
 
@@ -241,7 +273,7 @@ object PdfTextContentExtractor {
     }
 
     private fun decodePdfString(str: String): String {
-        var s = str.trim()
+        val s = str.trim()
         if (s.startsWith("(") && s.endsWith(")")) {
             return decodePdfEscapes(s.substring(1, s.length - 1))
         }
@@ -252,20 +284,21 @@ object PdfTextContentExtractor {
     }
 
     private fun decodePdfEscapes(raw: String): String {
-        val sb = StringBuilder()
+        // 先还原为真实字节数组，再做智能编码判定，解决中文双字节被砍乱码问题
+        val byteOut = ByteArrayOutputStream()
         var i = 0
         while (i < raw.length) {
             val c = raw[i]
             if (c == '\\' && i + 1 < raw.length) {
-                when (val next = raw[i + 1]) {
-                    'n' -> { sb.append('\n'); i += 2 }
-                    'r' -> { sb.append('\r'); i += 2 }
-                    't' -> { sb.append('\t'); i += 2 }
-                    'b' -> { sb.append('\b'); i += 2 }
-                    'f' -> { sb.append('\u000c'); i += 2 }
-                    '(' -> { sb.append('('); i += 2 }
-                    ')' -> { sb.append(')'); i += 2 }
-                    '\\' -> { sb.append('\\'); i += 2 }
+                when (raw[i + 1]) {
+                    'n' -> { byteOut.write('\n'.code); i += 2 }
+                    'r' -> { byteOut.write('\r'.code); i += 2 }
+                    't' -> { byteOut.write('\t'.code); i += 2 }
+                    'b' -> { byteOut.write('\b'.code); i += 2 }
+                    'f' -> { byteOut.write(0x0c); i += 2 }
+                    '(' -> { byteOut.write('('.code); i += 2 }
+                    ')' -> { byteOut.write(')'.code); i += 2 }
+                    '\\' -> { byteOut.write('\\'.code); i += 2 }
                     in '0'..'7' -> {
                         // 八进制转义 \ddd
                         var octalStr = ""
@@ -275,20 +308,21 @@ object PdfTextContentExtractor {
                             oIdx++
                         }
                         val code = octalStr.toIntOrNull(8) ?: 32
-                        sb.append(code.toChar())
+                        byteOut.write(code)
                         i = oIdx
                     }
                     else -> {
-                        sb.append(next)
+                        byteOut.write(raw[i + 1].code)
                         i += 2
                     }
                 }
             } else {
-                sb.append(c)
+                byteOut.write(c.code and 0xFF)
                 i++
             }
         }
-        return sb.toString()
+        val bytes = byteOut.toByteArray()
+        return detectAndDecodeBytes(bytes)
     }
 
     private fun decodeHexPdfString(hex: String): String {
@@ -299,12 +333,86 @@ object PdfTextContentExtractor {
             val byteStr = clean.substring(i * 2, i * 2 + 2)
             bytes[i] = (byteStr.toIntOrNull(16) ?: 0).toByte()
         }
-        // 检查是否有 UTF-16BE BOM: 0xFE 0xFF
-        return if (bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte()) {
-            String(bytes, 2, bytes.size - 2, Charsets.UTF_16BE)
-        } else {
-            String(bytes, Charsets.UTF_8)
+        return detectAndDecodeBytes(bytes)
+    }
+
+    /**
+     * 智能多编码探测器：精确识别 UTF-16BE (包含 BOM 及无 BOM 高位 0x00 格式)、GBK、GB2312、UTF-8
+     */
+    private fun detectAndDecodeBytes(bytes: ByteArray): String {
+        if (bytes.isEmpty()) return ""
+
+        // 1. 带 UTF-16BE BOM: 0xFE 0xFF
+        if (bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte()) {
+            return String(bytes, 2, bytes.size - 2, Charsets.UTF_16BE)
         }
+
+        // 2. 带 UTF-8 BOM: 0xEF 0xBB 0xBF
+        if (bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()) {
+            return String(bytes, 3, bytes.size - 3, Charsets.UTF_8)
+        }
+
+        // 3. 无 BOM 的双字节 UTF-16BE (PDF 字体常以偶数字节存储，偶数位大量 0x00 或高位字符)
+        if (bytes.size >= 2 && bytes.size % 2 == 0) {
+            var zeroCount = 0
+            for (i in 0 until bytes.size step 2) {
+                if (bytes[i] == 0.toByte()) zeroCount++
+            }
+            if (zeroCount >= bytes.size / 4) {
+                try {
+                    return String(bytes, Charsets.UTF_16BE)
+                } catch (_: Exception) { }
+            }
+        }
+
+        // 4. 尝试以 UTF-8 解码，如果不是合法 UTF-8，再回退到 GBK / GB2312
+        if (isValidUtf8(bytes)) {
+            val s = String(bytes, Charsets.UTF_8)
+            // 如果不全是控制字符或乱码
+            if (!s.contains("\uFFFD")) {
+                return s
+            }
+        }
+
+        // 5. 回退到 GBK (中文 Windows/Office 最常用的编码)
+        try {
+            val gbkStr = String(bytes, GBK_CHARSET)
+            if (!gbkStr.contains("\uFFFD")) {
+                return gbkStr
+            }
+        } catch (_: Exception) { }
+
+        // 6. 最终兜底使用 ISO-8859-1
+        return String(bytes, Charsets.ISO_8859_1)
+    }
+
+    private fun isValidUtf8(bytes: ByteArray): Boolean {
+        var i = 0
+        while (i < bytes.size) {
+            val b = bytes[i].toInt() and 0xFF
+            when {
+                b in 0x00..0x7F -> i++
+                b in 0xC2..0xDF -> {
+                    if (i + 1 >= bytes.size || (bytes[i + 1].toInt() and 0xC0) != 0x80) return false
+                    i += 2
+                }
+                b in 0xE0..0xEF -> {
+                    if (i + 2 >= bytes.size ||
+                        (bytes[i + 1].toInt() and 0xC0) != 0x80 ||
+                        (bytes[i + 2].toInt() and 0xC0) != 0x80) return false
+                    i += 3
+                }
+                b in 0xF0..0xF4 -> {
+                    if (i + 3 >= bytes.size ||
+                        (bytes[i + 1].toInt() and 0xC0) != 0x80 ||
+                        (bytes[i + 2].toInt() and 0xC0) != 0x80 ||
+                        (bytes[i + 3].toInt() and 0xC0) != 0x80) return false
+                    i += 4
+                }
+                else -> return false
+            }
+        }
+        return true
     }
 
     private fun findMatchingParen(str: String, start: Int): Int {
