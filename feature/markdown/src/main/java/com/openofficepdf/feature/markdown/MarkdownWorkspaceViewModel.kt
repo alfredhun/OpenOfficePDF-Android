@@ -38,6 +38,7 @@ data class MarkdownUiState(
     val isNightMode: Boolean = false,
     val isModified: Boolean = false,
     val isSaving: Boolean = false,
+    val previewZoomScale: Float = 1.0f,
     val currentLineInEditor: Int = 0,
     val previewTargetIndex: Int = 0,
     val toastMessage: String? = null
@@ -146,6 +147,21 @@ class MarkdownWorkspaceViewModel(
 
     fun toggleNightMode() {
         _uiState.value = _uiState.value.copy(isNightMode = !_uiState.value.isNightMode)
+    }
+
+    fun zoomInPreview() {
+        val next = (_uiState.value.previewZoomScale + 0.15f).coerceAtMost(2.5f)
+        _uiState.value = _uiState.value.copy(previewZoomScale = next)
+    }
+
+    fun zoomOutPreview() {
+        val next = (_uiState.value.previewZoomScale - 0.15f).coerceAtLeast(0.6f)
+        _uiState.value = _uiState.value.copy(previewZoomScale = next)
+    }
+
+    fun setPreviewZoom(scale: Float) {
+        val next = scale.coerceIn(0.6f, 2.5f)
+        _uiState.value = _uiState.value.copy(previewZoomScale = next)
     }
 
     fun onEditorScrolledToLine(line: Int) {

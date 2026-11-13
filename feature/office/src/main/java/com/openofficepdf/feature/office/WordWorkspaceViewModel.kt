@@ -97,6 +97,21 @@ class WordWorkspaceViewModel(
         }
     }
 
+    fun zoomIn() {
+        val newScale = (_uiState.value.zoomScale + 0.15f).coerceAtMost(3.0f)
+        _uiState.value = _uiState.value.copy(zoomScale = newScale)
+    }
+
+    fun zoomOut() {
+        val newScale = (_uiState.value.zoomScale - 0.15f).coerceAtLeast(0.5f)
+        _uiState.value = _uiState.value.copy(zoomScale = newScale)
+    }
+
+    fun setZoomScale(scale: Float) {
+        val clamped = scale.coerceIn(0.5f, 3.0f)
+        _uiState.value = _uiState.value.copy(zoomScale = clamped)
+    }
+
     /**
      * 排版命令派发 (加粗、斜体、下划线、插入表格等)
      */

@@ -3,8 +3,10 @@ package com.openofficepdf.feature.office
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -133,6 +136,18 @@ fun WordWorkspaceScreen(
                         IconButton(onClick = { viewModel.appendNewParagraph("新录入段落内容...") }) {
                             Icon(Icons.Default.PostAdd, contentDescription = "新增段落", tint = MaterialTheme.colorScheme.primary)
                         }
+                        IconButton(onClick = { viewModel.zoomOut() }) {
+                            Icon(Icons.Default.ZoomOut, contentDescription = "缩小")
+                        }
+                        Text(
+                            text = "${(uiState.zoomScale * 100).toInt()}%",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        IconButton(onClick = { viewModel.zoomIn() }) {
+                            Icon(Icons.Default.ZoomIn, contentDescription = "放大")
+                        }
                         IconButton(onClick = { viewModel.toggleBold() }) {
                             Icon(
                                 Icons.Default.FormatBold,
@@ -175,6 +190,8 @@ fun WordWorkspaceScreen(
                 WordDocumentSurface(
                     viewMode = uiState.viewMode,
                     parsedDocx = uiState.parsedDocx,
+                    zoomScale = uiState.zoomScale,
+                    onZoomChange = { viewModel.setZoomScale(it) },
                     onUpdateParagraph = { idx, text -> viewModel.updateParagraphText(idx, text) }
                 )
             }
@@ -189,18 +206,26 @@ fun WordWorkspaceScreen(
 fun WordDocumentSurface(
     viewMode: WordLayoutViewMode,
     parsedDocx: com.openofficepdf.engine.office.openxml.ParsedDocxDocument?,
+    zoomScale: Float = 1.0f,
+    onZoomChange: (Float) -> Unit = {},
     onUpdateParagraph: (Int, String) -> Unit = { _, _ -> }
 ) {
     val blocks = parsedDocx?.blocks.orEmpty()
     val isPrintMode = viewMode == WordLayoutViewMode.PRINT_LAYOUT
 
-    androidx.compose.foundation.lazy.LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(if (isPrintMode) Color(0xFFE8E8E8) else Color.White)
-            .padding(horizontal = if (isPrintMode) 16.dp else 16.dp, vertical = if (isPrintMode) 16.dp else 20.dp),
-        contentPadding = PaddingValues(bottom = 96.dp)
-    ) {
+    SelectionContainer {
+        androidx.compose.foundation.lazy.LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (isPrintMode) Color(0xFFE8E8E8) else Color.White)
+                .padding(horizontal = if (isPrintMode) 16.dp else 16.dp, vertical = if (isPrintMode) 16.dp else 20.dp)
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, _, zoom, _ ->
+                        onZoomChange(zoomScale * zoom)
+                    }
+                },
+            contentPadding = PaddingValues(bottom = 96.dp)
+        ) {
         // 顶部状态栏 / 页眉
         item(key = "header") {
             if (isPrintMode) {
@@ -258,6 +283,7 @@ fun WordDocumentSurface(
                     blockIndex = idx,
                     block = blocks[idx],
                     isPrintMode = isPrintMode,
+                    zoomScale = zoomScale,
                     onUpdateText = { newText -> onUpdateParagraph(idx, newText) }
                 )
             }
@@ -308,6 +334,7 @@ private fun DocxBlockItem(
     blockIndex: Int,
     block: com.openofficepdf.engine.office.openxml.DocxBlock,
     isPrintMode: Boolean,
+    zoomScale: Float = 1.0f,
     onUpdateText: (String) -> Unit
 ) {
     val containerModifier = if (isPrintMode) {
@@ -324,7 +351,7 @@ private fun DocxBlockItem(
     when (block) {
         is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock -> {
             val p = block.paragraph
-            val baseFontSize = if (isPrintMode) 14 else 15
+            val baseFontSize = ((if (isPrintMode) 14 else 15) * zoomScale).coerceIn(9f, 48f)
             var isEditing by remember { mutableStateOf(false) }
             var editText by remember(p.fullText) { mutableStateOf(p.fullText) }
 
@@ -339,7 +366,7 @@ private fun DocxBlockItem(
                     textStyle = androidx.compose.ui.text.TextStyle(
                         fontSize = baseFontSize.sp,
                         fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
-                        lineHeight = if (isPrintMode) 22.sp else 24.sp
+                        lineHeight = (if (isPrintMode) 22 * zoomScale else 24 * zoomScale).sp
                     ),
                     trailingIcon = {
                         IconButton(onClick = { isEditing = false }) {
@@ -351,7 +378,7 @@ private fun DocxBlockItem(
                 Text(
                     text = p.fullText,
                     fontSize = if (p.isHeading) {
-                        (14 + maxOf(0, 6 - p.headingLevel.coerceIn(1, 6)) * 2).sp
+                        ((14 + maxOf(0, 6 - p.headingLevel.coerceIn(1, 6)) * 2) * zoomScale).sp
                     } else {
                         baseFontSize.sp
                     },
@@ -361,7 +388,7 @@ private fun DocxBlockItem(
                     } else {
                         androidx.compose.ui.text.font.FontStyle.Normal
                     },
-                    lineHeight = if (isPrintMode) 22.sp else 24.sp,
+                    lineHeight = (if (isPrintMode) 22 * zoomScale else 24 * zoomScale).sp,
                     modifier = containerModifier
                         .clickable { isEditing = true }
                 )
@@ -379,7 +406,7 @@ private fun DocxBlockItem(
                         row.forEach { cell ->
                             Text(
                                 text = cell.text,
-                                fontSize = 13.sp,
+                                fontSize = (13 * zoomScale).sp,
                                 modifier = Modifier
                                     .weight(1f)
                                     .border(0.5.dp, borderColor)

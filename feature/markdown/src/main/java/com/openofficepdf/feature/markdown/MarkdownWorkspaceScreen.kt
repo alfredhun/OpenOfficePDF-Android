@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -21,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -93,6 +96,18 @@ fun MarkdownWorkspaceScreen(
                     IconButton(onClick = { openMdLauncher.launch(arrayOf("text/markdown", "text/plain", "*/*")) }) {
                         Icon(Icons.Default.FolderOpen, contentDescription = "打开本地MD文件")
                     }
+                    IconButton(onClick = { viewModel.zoomOutPreview() }) {
+                        Icon(Icons.Default.ZoomOut, contentDescription = "缩小排版")
+                    }
+                    Text(
+                        text = "${(uiState.previewZoomScale * 100).toInt()}%",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    IconButton(onClick = { viewModel.zoomInPreview() }) {
+                        Icon(Icons.Default.ZoomIn, contentDescription = "放大排版")
+                    }
                     IconButton(onClick = { viewModel.toggleNightMode() }) {
                         Icon(
                             imageVector = if (uiState.isNightMode) Icons.Default.Brightness7 else Icons.Default.Brightness4,
@@ -153,7 +168,9 @@ fun MarkdownWorkspaceScreen(
                             MarkdownNativePreview(
                                 blocks = uiState.parsedBlocks,
                                 targetBlockIndex = uiState.previewTargetIndex,
-                                isNightMode = uiState.isNightMode
+                                isNightMode = uiState.isNightMode,
+                                zoomScale = uiState.previewZoomScale,
+                                onZoomChange = { viewModel.setPreviewZoom(it) }
                             )
                         }
                     }
@@ -170,7 +187,9 @@ fun MarkdownWorkspaceScreen(
                     MarkdownNativePreview(
                         blocks = uiState.parsedBlocks,
                         targetBlockIndex = uiState.previewTargetIndex,
-                        isNightMode = uiState.isNightMode
+                        isNightMode = uiState.isNightMode,
+                        zoomScale = uiState.previewZoomScale,
+                        onZoomChange = { viewModel.setPreviewZoom(it) }
                     )
                 }
             }
@@ -221,7 +240,9 @@ fun MarkdownSourceEditor(
 fun MarkdownNativePreview(
     blocks: List<MarkdownBlock>,
     targetBlockIndex: Int,
-    isNightMode: Boolean
+    isNightMode: Boolean,
+    zoomScale: Float = 1.0f,
+    onZoomChange: (Float) -> Unit = {}
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -235,14 +256,22 @@ fun MarkdownNativePreview(
         }
     }
 
-    LazyColumn(
-        state = listState,
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        itemsIndexed(blocks) { _, block ->
-            MarkdownBlockRenderer(block = block, isNightMode = isNightMode)
+    SelectionContainer {
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy((10 * zoomScale).dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, _, zoom, _ ->
+                        onZoomChange(zoomScale * zoom)
+                    }
+                }
+        ) {
+            itemsIndexed(blocks) { _, block ->
+                MarkdownBlockRenderer(block = block, isNightMode = isNightMode, zoomScale = zoomScale)
+            }
         }
     }
 }
@@ -253,17 +282,18 @@ fun MarkdownNativePreview(
 @Composable
 fun MarkdownBlockRenderer(
     block: MarkdownBlock,
-    isNightMode: Boolean
+    isNightMode: Boolean,
+    zoomScale: Float = 1.0f
 ) {
     val textColor = if (isNightMode) Color(0xFFEEEEEE) else Color(0xFF222222)
 
     when (block) {
         is MarkdownBlock.Heading -> {
             val (fontSize, weight) = when (block.level) {
-                1 -> 24.sp to FontWeight.Bold
-                2 -> 20.sp to FontWeight.Bold
-                3 -> 17.sp to FontWeight.SemiBold
-                else -> 15.sp to FontWeight.Medium
+                1 -> (24 * zoomScale).sp to FontWeight.Bold
+                2 -> (20 * zoomScale).sp to FontWeight.Bold
+                3 -> (17 * zoomScale).sp to FontWeight.SemiBold
+                else -> (15 * zoomScale).sp to FontWeight.Medium
             }
             val headingSpan = remember(block.text, isNightMode) {
                 MarkdownInlineParser.parseInlineSpans(block.text, isNightMode)
@@ -273,7 +303,7 @@ fun MarkdownBlockRenderer(
                 fontSize = fontSize,
                 fontWeight = weight,
                 color = textColor,
-                modifier = Modifier.padding(vertical = 4.dp)
+                modifier = Modifier.padding(vertical = (4 * zoomScale).dp)
             )
         }
         is MarkdownBlock.Paragraph -> {
@@ -282,8 +312,8 @@ fun MarkdownBlockRenderer(
             }
             Text(
                 text = paragraphSpan,
-                fontSize = 15.sp,
-                lineHeight = 24.sp,
+                fontSize = (15 * zoomScale).coerceAtLeast(10f).sp,
+                lineHeight = (24 * zoomScale).coerceAtLeast(16f).sp,
                 color = textColor
             )
         }
@@ -295,20 +325,20 @@ fun MarkdownBlockRenderer(
             Surface(
                 shape = RoundedCornerShape(6.dp),
                 color = quoteBg,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(vertical = (4 * zoomScale).dp)
             ) {
-                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.padding((10 * zoomScale).dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .width(3.dp)
-                            .height(24.dp)
+                            .height((24 * zoomScale).dp)
                             .background(Color(0xFF2563EB), RoundedCornerShape(2.dp))
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width((10 * zoomScale).dp))
                     Text(
                         text = quoteSpan,
-                        fontSize = 14.sp,
-                        lineHeight = 22.sp,
+                        fontSize = (14 * zoomScale).coerceAtLeast(10f).sp,
+                        lineHeight = (22 * zoomScale).coerceAtLeast(16f).sp,
                         color = if (isNightMode) Color(0xFF94A3B8) else Color(0xFF475569)
                     )
                 }
@@ -320,12 +350,12 @@ fun MarkdownBlockRenderer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(codeBg, RoundedCornerShape(6.dp))
-                    .padding(8.dp)
+                    .padding((8 * zoomScale).dp)
             ) {
                 if (!block.language.isNullOrBlank()) {
                     Text(
                         text = block.language ?: "",
-                        fontSize = 11.sp,
+                        fontSize = (11 * zoomScale).coerceAtLeast(8f).sp,
                         color = Color.Gray,
                         modifier = Modifier.align(Alignment.End)
                     )
@@ -334,8 +364,8 @@ fun MarkdownBlockRenderer(
                     Text(
                         text = block.code,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp,
+                        fontSize = (13 * zoomScale).coerceAtLeast(9f).sp,
+                        lineHeight = (18 * zoomScale).coerceAtLeast(13f).sp,
                         color = if (isNightMode) Color(0xFF98C379) else Color(0xFFC7254E)
                     )
                 }
@@ -348,7 +378,7 @@ fun MarkdownBlockRenderer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(1.dp, if (isNightMode) Color(0xFF3E3E42) else Color(0xFFE5E5E5), RoundedCornerShape(8.dp))
-                    .padding(12.dp)
+                    .padding((12 * zoomScale).dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(
@@ -356,14 +386,14 @@ fun MarkdownBlockRenderer(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Mermaid 图表 (离线渲染)", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                        Icon(Icons.Default.AutoGraph, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text("Mermaid 图表 (离线渲染)", fontSize = (12 * zoomScale).sp, color = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.AutoGraph, contentDescription = null, modifier = Modifier.size((16 * zoomScale).dp))
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height((8 * zoomScale).dp))
                     Text(
                         text = block.sourceCode,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
+                        fontSize = (12 * zoomScale).coerceAtLeast(9f).sp,
                         color = Color.Gray
                     )
                 }
@@ -379,20 +409,20 @@ fun MarkdownBlockRenderer(
                 border = androidx.compose.foundation.BorderStroke(1.dp, if (isNightMode) Color(0xFF334155) else Color(0xFFDCFCE7)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp)
+                    .padding(vertical = (6 * zoomScale).dp)
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = (16 * zoomScale).dp, vertical = (12 * zoomScale).dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = prettyFormula,
                             fontFamily = FontFamily.Serif,
-                            fontSize = 18.sp,
+                            fontSize = (18 * zoomScale).coerceAtLeast(12f).sp,
                             fontWeight = FontWeight.SemiBold,
                             color = if (isNightMode) Color(0xFF38BDF8) else Color(0xFF0F766E)
                         )
@@ -411,13 +441,13 @@ fun MarkdownBlockRenderer(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(if (idx == 0) Color.Gray.copy(alpha = 0.15f) else Color.Transparent)
-                            .padding(8.dp),
+                            .padding((8 * zoomScale).dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         for (cell in row) {
                             Text(
                                 text = cell,
-                                fontSize = 13.sp,
+                                fontSize = (13 * zoomScale).coerceAtLeast(9f).sp,
                                 fontWeight = if (idx == 0) FontWeight.Bold else FontWeight.Normal,
                                 color = textColor,
                                 modifier = Modifier.weight(1f)
@@ -431,9 +461,9 @@ fun MarkdownBlockRenderer(
             val itemSpan = remember(block.text, isNightMode) {
                 MarkdownInlineParser.parseInlineSpans(block.text, isNightMode)
             }
-            Row(modifier = Modifier.fillMaxWidth().padding(start = (block.depth * 16).dp, top = 2.dp, bottom = 2.dp)) {
-                Text("• ", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                Text(text = itemSpan, fontSize = 15.sp, lineHeight = 22.sp, color = textColor)
+            Row(modifier = Modifier.fillMaxWidth().padding(start = (block.depth * 16 * zoomScale).dp, top = 2.dp, bottom = 2.dp)) {
+                Text("• ", fontSize = (16 * zoomScale).sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text(text = itemSpan, fontSize = (15 * zoomScale).coerceAtLeast(10f).sp, lineHeight = (22 * zoomScale).coerceAtLeast(16f).sp, color = textColor)
             }
         }
         is MarkdownBlock.TaskListItem -> {
@@ -445,7 +475,7 @@ fun MarkdownBlockRenderer(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = (block.depth * 16).dp, top = 2.dp, bottom = 2.dp)
+                    .padding(start = (block.depth * 16 * zoomScale).dp, top = 2.dp, bottom = 2.dp)
             ) {
                 Checkbox(
                     checked = checkedState,
@@ -457,8 +487,8 @@ fun MarkdownBlockRenderer(
                 )
                 Text(
                     text = itemSpan,
-                    fontSize = 15.sp,
-                    lineHeight = 22.sp,
+                    fontSize = (15 * zoomScale).coerceAtLeast(10f).sp,
+                    lineHeight = (22 * zoomScale).coerceAtLeast(16f).sp,
                     color = if (checkedState) textColor.copy(alpha = 0.5f) else textColor
                 )
             }

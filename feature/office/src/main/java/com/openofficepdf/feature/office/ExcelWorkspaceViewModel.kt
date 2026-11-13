@@ -25,6 +25,7 @@ data class ExcelWorkspaceUiState(
     val isSaving: Boolean = false,
     val isDirty: Boolean = false,
     val isFilterEnabled: Boolean = false,
+    val zoomScale: Float = 1.0f,
     val toastMessage: String? = null
 )
 
@@ -203,6 +204,21 @@ class ExcelWorkspaceViewModel(
 
     fun toggleFilter() {
         _uiState.value = _uiState.value.copy(isFilterEnabled = !_uiState.value.isFilterEnabled)
+    }
+
+    fun zoomIn() {
+        val newScale = (_uiState.value.zoomScale + 0.15f).coerceAtMost(2.5f)
+        _uiState.value = _uiState.value.copy(zoomScale = newScale)
+    }
+
+    fun zoomOut() {
+        val newScale = (_uiState.value.zoomScale - 0.15f).coerceAtLeast(0.6f)
+        _uiState.value = _uiState.value.copy(zoomScale = newScale)
+    }
+
+    fun setZoomScale(scale: Float) {
+        val clamped = scale.coerceIn(0.6f, 2.5f)
+        _uiState.value = _uiState.value.copy(zoomScale = clamped)
     }
 
     /**

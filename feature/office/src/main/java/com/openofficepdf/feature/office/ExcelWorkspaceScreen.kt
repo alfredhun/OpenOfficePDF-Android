@@ -3,12 +3,14 @@ package com.openofficepdf.feature.office
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -16,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -91,6 +94,19 @@ fun ExcelWorkspaceScreen(
                         Icon(Icons.Default.FolderOpen, contentDescription = "打开表格")
                     }
 
+                    IconButton(onClick = { viewModel.zoomOut() }) {
+                        Icon(Icons.Default.ZoomOut, contentDescription = "缩小表格")
+                    }
+                    Text(
+                        text = "${(uiState.zoomScale * 100).toInt()}%",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    IconButton(onClick = { viewModel.zoomIn() }) {
+                        Icon(Icons.Default.ZoomIn, contentDescription = "放大表格")
+                    }
+
                     IconButton(onClick = { viewModel.toggleFilter() }) {
                         Icon(
                             imageVector = Icons.Default.FilterList,
@@ -148,6 +164,8 @@ fun ExcelWorkspaceScreen(
             SpreadsheetGrid(
                 sheet = activeSheet,
                 selectedCoord = uiState.selectedCellCoord,
+                zoomScale = uiState.zoomScale,
+                onZoomChange = { viewModel.setZoomScale(it) },
                 onCellSelected = { r, c -> viewModel.selectCell(r, c) }
             )
         }
@@ -238,94 +256,103 @@ fun SpreadsheetFormulaBar(
 fun SpreadsheetGrid(
     sheet: SpreadsheetSheet,
     selectedCoord: Pair<Int, Int>?,
+    zoomScale: Float = 1.0f,
+    onZoomChange: (Float) -> Unit = {},
     onCellSelected: (Int, Int) -> Unit
 ) {
     val hScrollState = rememberScrollState()
-    val cellWidth = 90.dp
-    val headerHeight = 30.dp
-    val rowHeight = 36.dp
+    val cellWidth = (90 * zoomScale).dp
+    val headerHeight = (30 * zoomScale).dp
+    val rowHeight = (36 * zoomScale).dp
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .horizontalScroll(hScrollState)
-    ) {
-        Column {
-            // 列头 (A, B, C, D...)
-            Row(
-                modifier = Modifier
-                    .background(Color(0xFFEFEFEF))
-                    .border(1.dp, Color(0xFFD4D4D4))
-            ) {
-                // 左上角空白锚点
-                Box(
-                    modifier = Modifier
-                        .size(width = 40.dp, height = headerHeight)
-                        .border(0.5.dp, Color(0xFFD4D4D4))
-                )
-                for (c in 0 until sheet.totalCols) {
-                    val colLetter = formatColumnLetter(c)
-                    Box(
-                        modifier = Modifier
-                            .size(width = cellWidth, height = headerHeight)
-                            .border(0.5.dp, Color(0xFFD4D4D4)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = colLetter,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp,
-                            color = Color.DarkGray
-                        )
+    SelectionContainer {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .horizontalScroll(hScrollState)
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, _, zoom, _ ->
+                        onZoomChange(zoomScale * zoom)
                     }
                 }
-            }
-
-            // 数据行虚拟列表 (使用 weight(1f) 自适应横竖屏剩余高度，杜绝横屏崩溃)
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(sheet.totalRows) { r ->
-                    Row(modifier = Modifier.height(rowHeight)) {
-                        // 行号 (1, 2, 3...)
+        ) {
+            Column {
+                // 列头 (A, B, C, D...)
+                Row(
+                    modifier = Modifier
+                        .background(Color(0xFFEFEFEF))
+                        .border(1.dp, Color(0xFFD4D4D4))
+                ) {
+                    // 左上角空白锚点
+                    Box(
+                        modifier = Modifier
+                            .size(width = 40.dp, height = headerHeight)
+                            .border(0.5.dp, Color(0xFFD4D4D4))
+                    )
+                    for (c in 0 until sheet.totalCols) {
+                        val colLetter = formatColumnLetter(c)
                         Box(
                             modifier = Modifier
-                                .size(width = 40.dp, height = rowHeight)
-                                .background(Color(0xFFEFEFEF))
+                                .size(width = cellWidth, height = headerHeight)
                                 .border(0.5.dp, Color(0xFFD4D4D4)),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = (r + 1).toString(),
-                                fontSize = 11.sp,
-                                color = Color.Gray
+                                text = colLetter,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = (12 * zoomScale).coerceAtLeast(8f).sp,
+                                color = Color.DarkGray
                             )
                         }
+                    }
+                }
 
-                        // 每一列单元格
-                        for (c in 0 until sheet.totalCols) {
-                            val cell = sheet.cells[r to c]
-                            val isSelected = (selectedCoord?.first == r && selectedCoord.second == c)
-
+                // 数据行虚拟列表 (使用 weight(1f) 自适应横竖屏剩余高度，杜绝横屏崩溃)
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(sheet.totalRows) { r ->
+                        Row(modifier = Modifier.height(rowHeight)) {
+                            // 行号 (1, 2, 3...)
                             Box(
                                 modifier = Modifier
-                                    .size(width = cellWidth, height = rowHeight)
-                                    .background(if (isSelected) Color(0xFFE3F2FD) else Color.White)
-                                    .border(
-                                        width = if (isSelected) 2.dp else 0.5.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFFE0E0E0)
-                                    )
-                                    .clickable { onCellSelected(r, c) }
-                                    .padding(horizontal = 6.dp),
-                                contentAlignment = Alignment.CenterStart
+                                    .size(width = 40.dp, height = rowHeight)
+                                    .background(Color(0xFFEFEFEF))
+                                    .border(0.5.dp, Color(0xFFD4D4D4)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                if (cell != null) {
-                                    Text(
-                                        text = cell.displayValue,
-                                        fontSize = 13.sp,
-                                        fontWeight = if (cell.isBold) FontWeight.Bold else FontWeight.Normal,
-                                        textAlign = if (cell.dataType == CellDataType.NUMBER) TextAlign.End else TextAlign.Start,
-                                        maxLines = 1,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                                Text(
+                                    text = (r + 1).toString(),
+                                    fontSize = (11 * zoomScale).coerceAtLeast(8f).sp,
+                                    color = Color.Gray
+                                )
+                            }
+
+                            // 每一列单元格
+                            for (c in 0 until sheet.totalCols) {
+                                val cell = sheet.cells[r to c]
+                                val isSelected = (selectedCoord?.first == r && selectedCoord.second == c)
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = cellWidth, height = rowHeight)
+                                        .background(if (isSelected) Color(0xFFE3F2FD) else Color.White)
+                                        .border(
+                                            width = if (isSelected) 2.dp else 0.5.dp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFFE0E0E0)
+                                        )
+                                        .clickable { onCellSelected(r, c) }
+                                        .padding(horizontal = 6.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (cell != null) {
+                                        Text(
+                                            text = cell.displayValue,
+                                            fontSize = (13 * zoomScale).coerceAtLeast(9f).sp,
+                                            fontWeight = if (cell.isBold) FontWeight.Bold else FontWeight.Normal,
+                                            textAlign = if (cell.dataType == CellDataType.NUMBER) TextAlign.End else TextAlign.Start,
+                                            maxLines = 1,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
                                 }
                             }
                         }
