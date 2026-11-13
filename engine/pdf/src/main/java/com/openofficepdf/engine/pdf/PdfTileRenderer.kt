@@ -41,8 +41,8 @@ data class RenderedTile(
  */
 class PdfTileRenderer(
     private val bitmapPool: BitmapPool,
-    private val docHandles: ConcurrentHashMap<SessionId, Long> = ConcurrentHashMap(),
-    private val nativeRendererBridge: AndroidPdfRendererBridge? = null
+    private val nativeRendererBridge: AndroidPdfRendererBridge? = null,
+    private val docHandles: ConcurrentHashMap<SessionId, Long> = ConcurrentHashMap()
 ) : PdfRenderEngine {
 
     companion object {

@@ -16,6 +16,7 @@ import com.openofficepdf.engine.markdown.MarkdownScrollSyncAndSanitizer
 import com.openofficepdf.engine.markdown.MermaidRenderPool
 import com.openofficepdf.engine.ocr.OcrEngine
 import com.openofficepdf.engine.ocr.OcrEngineImpl
+import com.openofficepdf.engine.ocr.SearchablePdfSynthesizer
 import com.openofficepdf.engine.office.CollaboraOfficeAdapter
 import com.openofficepdf.engine.office.OfficeEngine
 import com.openofficepdf.engine.pdf.*
