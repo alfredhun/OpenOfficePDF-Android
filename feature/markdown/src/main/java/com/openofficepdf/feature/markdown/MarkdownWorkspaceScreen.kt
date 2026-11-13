@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openofficepdf.core.model.DocumentId
 import com.openofficepdf.engine.markdown.*
+import com.openofficepdf.engine.markdown.MarkdownInlineParser
 import kotlinx.coroutines.launch
 
 /**
@@ -265,8 +266,11 @@ fun MarkdownBlockRenderer(
                 3 -> 17.sp to FontWeight.SemiBold
                 else -> 15.sp to FontWeight.Medium
             }
+            val headingSpan = remember(block.text, isNightMode) {
+                MarkdownInlineParser.parseInlineSpans(block.text, isNightMode)
+            }
             Text(
-                text = block.text,
+                text = headingSpan,
                 fontSize = fontSize,
                 fontWeight = weight,
                 color = textColor,
@@ -274,12 +278,42 @@ fun MarkdownBlockRenderer(
             )
         }
         is MarkdownBlock.Paragraph -> {
+            val paragraphSpan = remember(block.text, isNightMode) {
+                MarkdownInlineParser.parseInlineSpans(block.text, isNightMode)
+            }
             Text(
-                text = block.text,
+                text = paragraphSpan,
                 fontSize = 15.sp,
-                lineHeight = 22.sp,
+                lineHeight = 24.sp,
                 color = textColor
             )
+        }
+        is MarkdownBlock.BlockQuote -> {
+            val quoteSpan = remember(block.text, isNightMode) {
+                MarkdownInlineParser.parseInlineSpans(block.text, isNightMode)
+            }
+            val quoteBg = if (isNightMode) Color(0xFF1E293B) else Color(0xFFF8FAFC)
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = quoteBg,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .width(3.dp)
+                            .height(24.dp)
+                            .background(Color(0xFF2563EB), RoundedCornerShape(2.dp))
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = quoteSpan,
+                        fontSize = 14.sp,
+                        lineHeight = 22.sp,
+                        color = if (isNightMode) Color(0xFF94A3B8) else Color(0xFF475569)
+                    )
+                }
+            }
         }
         is MarkdownBlock.CodeBlock -> {
             val codeBg = if (isNightMode) Color(0xFF2B2B2B) else Color(0xFFF0F0F0)
@@ -337,20 +371,34 @@ fun MarkdownBlockRenderer(
             }
         }
         is MarkdownBlock.MathFormula -> {
+            val prettyFormula = remember(block.formula) {
+                MarkdownInlineParser.formatMathSnippet(block.formula)
+            }
             Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = if (isNightMode) Color(0xFF222222) else Color(0xFFF5F5F5),
+                shape = RoundedCornerShape(10.dp),
+                color = if (isNightMode) Color(0xFF1E293B) else Color(0xFFF0FDF4),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isNightMode) Color(0xFF334155) else Color(0xFFDCFCE7)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
+                    .padding(vertical = 6.dp)
             ) {
-                Text(
-                    text = "KaTeX: $$ ${block.formula} $$",
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 14.sp,
-                    color = textColor,
-                    modifier = Modifier.padding(8.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = prettyFormula,
+                            fontFamily = FontFamily.Serif,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isNightMode) Color(0xFF38BDF8) else Color(0xFF0F766E)
+                        )
+                    }
+                }
             }
         }
         is MarkdownBlock.Table -> {
@@ -381,9 +429,39 @@ fun MarkdownBlockRenderer(
             }
         }
         is MarkdownBlock.ListItem -> {
-            Row(modifier = Modifier.fillMaxWidth().padding(start = (block.depth * 16).dp)) {
-                Text("• ", fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
-                Text(text = block.text, fontSize = 15.sp, color = textColor)
+            val itemSpan = remember(block.text, isNightMode) {
+                MarkdownInlineParser.parseInlineSpans(block.text, isNightMode)
+            }
+            Row(modifier = Modifier.fillMaxWidth().padding(start = (block.depth * 16).dp, top = 2.dp, bottom = 2.dp)) {
+                Text("• ", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text(text = itemSpan, fontSize = 15.sp, lineHeight = 22.sp, color = textColor)
+            }
+        }
+        is MarkdownBlock.TaskListItem -> {
+            var checkedState by remember(block.isChecked) { mutableStateOf(block.isChecked) }
+            val itemSpan = remember(block.text, isNightMode) {
+                MarkdownInlineParser.parseInlineSpans(block.text, isNightMode)
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = (block.depth * 16).dp, top = 2.dp, bottom = 2.dp)
+            ) {
+                Checkbox(
+                    checked = checkedState,
+                    onCheckedChange = { checkedState = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier.size(24.dp).padding(end = 8.dp)
+                )
+                Text(
+                    text = itemSpan,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp,
+                    color = if (checkedState) textColor.copy(alpha = 0.5f) else textColor
+                )
             }
         }
     }

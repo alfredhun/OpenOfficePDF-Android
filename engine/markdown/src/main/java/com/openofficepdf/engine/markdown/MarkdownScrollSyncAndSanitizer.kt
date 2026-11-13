@@ -7,11 +7,13 @@ package com.openofficepdf.engine.markdown
 sealed class MarkdownBlock(open val lineIndex: Int = 0) {
     data class Heading(val level: Int, val text: String, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
     data class Paragraph(val text: String, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
+    data class BlockQuote(val text: String, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
     data class CodeBlock(val code: String, val language: String? = null, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
     data class MermaidChart(val sourceCode: String, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
     data class MathFormula(val formula: String, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
     data class Table(val rows: List<List<String>>, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
     data class ListItem(val text: String, val depth: Int = 0, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
+    data class TaskListItem(val text: String, val isChecked: Boolean, val depth: Int = 0, override val lineIndex: Int = 0) : MarkdownBlock(lineIndex)
 }
 
 class MarkdownScrollSyncAndSanitizer(

@@ -76,6 +76,9 @@ class MarkdownAstParser {
                 val level = trimmed.takeWhile { it == '#' }.length
                 val title = trimmed.drop(level).trim()
                 blocks.add(MarkdownBlock.Heading(level, title, lineNum))
+            } else if (trimmed.startsWith(">")) {
+                val quoteText = trimmed.removePrefix(">").trim()
+                blocks.add(MarkdownBlock.BlockQuote(quoteText, lineNum))
             } else if (trimmed.startsWith("$$") && trimmed.endsWith("$$") && trimmed.length > 4) {
                 blocks.add(MarkdownBlock.MathFormula(trimmed.substring(2, trimmed.length - 2).trim(), lineNum))
             } else if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
@@ -83,6 +86,10 @@ class MarkdownAstParser {
                 if (!trimmed.contains("---")) {
                     blocks.add(MarkdownBlock.Table(listOf(cells), lineNum))
                 }
+            } else if (trimmed.startsWith("- [ ] ") || trimmed.startsWith("* [ ] ")) {
+                blocks.add(MarkdownBlock.TaskListItem(trimmed.drop(6).trim(), isChecked = false, depth = 0, lineIndex = lineNum))
+            } else if (trimmed.startsWith("- [x] ", ignoreCase = true) || trimmed.startsWith("* [x] ", ignoreCase = true)) {
+                blocks.add(MarkdownBlock.TaskListItem(trimmed.drop(6).trim(), isChecked = true, depth = 0, lineIndex = lineNum))
             } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
                 blocks.add(MarkdownBlock.ListItem(trimmed.drop(2), depth = 0, lineIndex = lineNum))
             } else if (trimmed.isNotEmpty()) {
