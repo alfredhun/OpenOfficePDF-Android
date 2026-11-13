@@ -1,21 +1,17 @@
 package com.openofficepdf.engine.converter
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Rect
 import android.graphics.pdf.PdfDocument
-import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import com.openofficepdf.core.common.AppDispatchers
 import com.openofficepdf.core.common.EngineErrorCode
 import com.openofficepdf.core.common.EngineResult
+import com.openofficepdf.engine.office.openxml.DocxBlock
 import com.openofficepdf.engine.office.openxml.DocxDocumentParser
 import com.openofficepdf.engine.office.openxml.XlsxDocumentParser
 import kotlinx.coroutines.withContext
-import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -24,21 +20,20 @@ import java.util.zip.ZipOutputStream
  * 1. 100% 离线、纯原生无网络
  * 2. DOCX -> PDF: 基于 OpenXML 解析出的段落、标题与表格，利用 PdfDocument 绘制排版分页生成标准 PDF
  * 3. XLSX -> PDF: 将表格行列网格绘制为分页 PDF
- * 4. PDF/IMG -> DOCX: 将提取的纯文本与段落重新打包为标准 OpenXML .docx (包含 [Content_Types].xml, _rels, word/document.xml)
+ * 4. PDF/IMG -> DOCX: 将提取的纯文本与段落重新打包为标准 OpenXML .docx
  */
 class RealDocumentConverter(
     private val context: Context
 ) {
-    private val docxParser = DocxDocumentParser()
-    private val xlsxParser = XlsxDocumentParser()
 
     /**
      * 将 Word (DOCX) 转换为 PDF
      */
     suspend fun convertDocxToPdf(sourceUri: Uri, outputUri: Uri): EngineResult<Int> = withContext(AppDispatchers.io) {
         try {
-            val docxModel = docxParser.parseDocx(context, sourceUri)
-                ?: return@withContext EngineResult.failure(EngineErrorCode.FILE_READ_FAILED, "无法解析 Word 文档")
+            val docxModel = context.contentResolver.openInputStream(sourceUri)?.use { stream ->
+                DocxDocumentParser.parse(stream, "文档.docx")
+            } ?: return@withContext EngineResult.failure(EngineErrorCode.FILE_READ_FAILED, "无法解析 Word 文档")
 
             val pdfDocument = PdfDocument()
             val pageWidth = 595 // A4 宽度点数
@@ -68,50 +63,47 @@ class RealDocumentConverter(
                 }
             }
 
-            // 绘制段落与内容
-            for (para in docxModel.paragraphs) {
-                paint.textSize = when (para.styleName) {
-                    "Title" -> 22f
-                    "Heading 1" -> 18f
-                    "Heading 2" -> 16f
-                    else -> 13f
-                }
-                paint.isFakeBoldText = para.runs.any { it.bold } || para.styleName?.startsWith("Heading") == true
+            for (block in docxModel.blocks) {
+                when (block) {
+                    is DocxBlock.ParagraphBlock -> {
+                        val para = block.paragraph
+                        paint.textSize = if (para.isHeading) 18f else 13f
+                        paint.isFakeBoldText = para.runs.any { it.isBold } || para.isHeading
 
-                val text = para.text.ifBlank { " " }
-                checkPageBreak(paint.textSize + 12f)
-                canvas.drawText(text, margin, currentY + paint.textSize, paint)
-                currentY += paint.textSize + 10f
-            }
-
-            // 绘制表格
-            for (table in docxModel.tables) {
-                val rowHeight = 24f
-                val colWidth = (pageWidth - margin * 2) / 4f // 默认四等分
-
-                for (row in table.rows) {
-                    checkPageBreak(rowHeight + 4f)
-                    for ((cIdx, cell) in row.cells.withIndex()) {
-                        val cellLeft = margin + cIdx * colWidth
-                        val cellTop = currentY
-                        val cellRight = cellLeft + colWidth
-                        val cellBottom = cellTop + rowHeight
-
-                        val borderPaint = Paint().apply {
-                            style = Paint.Style.STROKE
-                            color = Color.LTGRAY
-                            strokeWidth = 1f
-                        }
-                        canvas.drawRect(cellLeft, cellTop, cellRight, cellBottom, borderPaint)
-
-                        paint.textSize = 11f
-                        paint.isFakeBoldText = false
-                        val cellText = cell.text.take(15)
-                        canvas.drawText(cellText, cellLeft + 4f, cellTop + 16f, paint)
+                        val text = para.fullText.ifBlank { " " }
+                        checkPageBreak(paint.textSize + 12f)
+                        canvas.drawText(text, margin, currentY + paint.textSize, paint)
+                        currentY += paint.textSize + 10f
                     }
-                    currentY += rowHeight
+                    is DocxBlock.TableBlock -> {
+                        val rowHeight = 24f
+                        val colWidth = (pageWidth - margin * 2) / 4f
+
+                        for (row in block.table.rows) {
+                            checkPageBreak(rowHeight + 4f)
+                            for ((cIdx, cell) in row.withIndex()) {
+                                val cellLeft = margin + cIdx * colWidth
+                                val cellTop = currentY
+                                val cellRight = cellLeft + colWidth
+                                val cellBottom = cellTop + rowHeight
+
+                                val borderPaint = Paint().apply {
+                                    style = Paint.Style.STROKE
+                                    color = Color.LTGRAY
+                                    strokeWidth = 1f
+                                }
+                                canvas.drawRect(cellLeft, cellTop, cellRight, cellBottom, borderPaint)
+
+                                paint.textSize = 11f
+                                paint.isFakeBoldText = false
+                                val cellText = cell.text.take(15)
+                                canvas.drawText(cellText, cellLeft + 4f, cellTop + 16f, paint)
+                            }
+                            currentY += rowHeight
+                        }
+                        currentY += 12f
+                    }
                 }
-                currentY += 12f
             }
 
             pdfDocument.finishPage(currentPage)
@@ -132,8 +124,9 @@ class RealDocumentConverter(
      */
     suspend fun convertXlsxToPdf(sourceUri: Uri, outputUri: Uri): EngineResult<Int> = withContext(AppDispatchers.io) {
         try {
-            val workbook = xlsxParser.parseXlsx(context, sourceUri)
-                ?: return@withContext EngineResult.failure(EngineErrorCode.FILE_READ_FAILED, "无法解析 Excel 工作簿")
+            val workbook = context.contentResolver.openInputStream(sourceUri)?.use { stream ->
+                XlsxDocumentParser.parse(stream, "工作簿.xlsx")
+            } ?: return@withContext EngineResult.failure(EngineErrorCode.FILE_READ_FAILED, "无法解析 Excel 工作簿")
 
             val pdfDocument = PdfDocument()
             val pageWidth = 842 // A4 横向
@@ -142,7 +135,7 @@ class RealDocumentConverter(
             var pageNum = 1
 
             val sheet = workbook.sheets.firstOrNull()
-            val rows = sheet?.rows ?: emptyList()
+            val cells = sheet?.cells ?: emptyMap()
 
             var currentPageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNum).create()
             var currentPage = pdfDocument.startPage(currentPageInfo)
@@ -163,8 +156,9 @@ class RealDocumentConverter(
             val colCount = 8
             val colWidth = (pageWidth - margin * 2) / colCount
             val rowHeight = 22f
+            val maxRow = cells.keys.maxOfOrNull { it.first } ?: 10
 
-            for (row in rows) {
+            for (r in 0..maxRow.coerceAtMost(50)) {
                 if (currentY + rowHeight > pageHeight - margin) {
                     pdfDocument.finishPage(currentPage)
                     pageNum++
@@ -174,9 +168,9 @@ class RealDocumentConverter(
                     currentY = margin
                 }
 
-                for (cIdx in 0 until colCount) {
-                    val cell = row.cells.getOrNull(cIdx)
-                    val left = margin + cIdx * colWidth
+                for (c in 0 until colCount) {
+                    val cell = cells[r to c]
+                    val left = margin + c * colWidth
                     val top = currentY
                     canvas.drawRect(left, top, left + colWidth, top + rowHeight, linePaint)
                     if (cell != null && cell.displayValue.isNotBlank()) {

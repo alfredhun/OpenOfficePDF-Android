@@ -18,8 +18,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.util.UUID
 
 /**
  * 屏幕布局模式
@@ -151,7 +149,7 @@ class MarkdownWorkspaceViewModel(
     }
 
     fun onEditorScrolledToLine(line: Int) {
-        val targetIdx = scrollSync.calculatePreviewTargetBlockIndex(line, _uiState.value.parsedBlocks)
+        val targetIdx = scrollSync.findTargetBlockIndexForSourceLine(line, _uiState.value.parsedBlocks)
         _uiState.value = _uiState.value.copy(
             currentLineInEditor = line,
             previewTargetIndex = targetIdx
@@ -159,19 +157,22 @@ class MarkdownWorkspaceViewModel(
     }
 
     fun saveDocument() {
-        // 保存到数据库缓存
         val state = _uiState.value
         val docId = state.documentId ?: return
+        val now = System.currentTimeMillis()
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
-            documentDao.insertDocument(
+            documentDao.insertOrUpdate(
                 DocumentEntity(
                     id = docId.value,
-                    title = state.documentTitle,
+                    displayName = state.documentTitle,
+                    mimeType = "text/markdown",
                     format = DocumentFormat.MD.name,
                     uri = state.sourceUri?.toString() ?: "memory://${docId.value}",
                     sizeBytes = state.sourceContent.toByteArray().size.toLong(),
-                    lastModified = System.currentTimeMillis()
+                    createdAt = now,
+                    modifiedAt = now,
+                    lastOpenedAt = now
                 )
             )
             _uiState.value = _uiState.value.copy(isSaving = false, isModified = false, toastMessage = "已保存到工作台记录")
