@@ -178,25 +178,42 @@ class PdfViewerViewModel(
         val bridge = pdfRendererBridge ?: return
         viewModelScope.launch {
             val size = bridge.getPageSize(sessionId, pageIndex) ?: (595f to 842f)
-            val baseW = size.first
-            val baseH = size.second
+            val baseW = size.first.coerceAtLeast(1f)
+            val baseH = size.second.coerceAtLeast(1f)
 
-            // 采用 2.0x 渲染比例生成清晰高质量位图，防止缩放时模糊
-            val renderScale = 2.0f
-            val w = (baseW * renderScale).toInt().coerceAtLeast(100)
-            val h = (baseH * renderScale).toInt().coerceAtLeast(100)
-            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            val renderRes = bridge.renderPageToBitmap(sessionId, pageIndex, bitmap)
+            // 修复：限制单张预览图最大边长为 2048px，防止超大工程图纸 PDF 引发 OOM
+            val maxDimension = 2048f
+            val desiredScale = 2.0f
+            val safeScale = minOf(
+                desiredScale,
+                maxDimension / maxOf(baseW, baseH)
+            ).coerceAtLeast(0.5f)
+
+            val w = (baseW * safeScale).toInt().coerceAtLeast(100)
+            val h = (baseH * safeScale).toInt().coerceAtLeast(100)
+
+            // 若尺寸一致则复用现有 Bitmap，减少 GC 抖动
+            val existingBitmap = _uiState.value.renderedBitmap
+            val targetBitmap = if (existingBitmap != null &&
+                !existingBitmap.isRecycled &&
+                existingBitmap.width == w &&
+                existingBitmap.height == h
+            ) {
+                existingBitmap
+            } else {
+                Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            }
+
+            val renderRes = bridge.renderPageToBitmap(sessionId, pageIndex, targetBitmap)
             if (renderRes is EngineResult.Success) {
                 _uiState.value = _uiState.value.copy(
-                    renderedBitmap = bitmap,
+                    renderedBitmap = targetBitmap,
                     rawPageWidthPt = baseW,
                     rawPageHeightPt = baseH,
                     currentPageIndex = pageIndex
                 )
             }
 
-            // 同步加载当页真实文字对象
             _uiState.value.documentUri?.let { uri ->
                 extractPageObjectsForEditing(uri, pageIndex)
             }
@@ -378,6 +395,9 @@ class PdfViewerViewModel(
         val sid = _uiState.value.sessionId
         if (sid != null) {
             pdfRendererBridge?.closeDocument(sid)
+        }
+        _uiState.value.renderedBitmap?.let { bmp ->
+            if (!bmp.isRecycled) bmp.recycle()
         }
     }
 }

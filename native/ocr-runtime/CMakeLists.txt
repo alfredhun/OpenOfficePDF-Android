@@ -15,5 +15,3 @@ target_link_libraries(ocr_runtime
     android
     log
 )
-
-target_link_options(ocr_runtime PRIVATE "-Wl,-z,max-page-size=16384")

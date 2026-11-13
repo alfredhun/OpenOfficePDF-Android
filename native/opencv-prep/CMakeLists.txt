@@ -15,5 +15,3 @@ target_link_libraries(opencv_prep
     android
     log
 )
-
-target_link_options(opencv_prep PRIVATE "-Wl,-z,max-page-size=16384")

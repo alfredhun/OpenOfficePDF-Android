@@ -12,5 +12,3 @@ target_link_libraries(office_bridge
     android
     log
 )
-
-target_link_options(office_bridge PRIVATE "-Wl,-z,max-page-size=16384")

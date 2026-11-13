@@ -4,6 +4,9 @@
 #include <unistd.h>
 #include <cstring>
 #include <algorithm>
+#include <memory>
+#include <mutex>
+#include <unordered_map>
 
 #define TAG "PdfiumBridge"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)
@@ -12,6 +15,25 @@
 namespace openofficepdf::pdf {
 
 namespace {
+
+struct DocumentSession {
+    FPDF_DOCUMENT doc = nullptr;
+    NativeFileAccess fileAccess{-1, 0};
+
+    ~DocumentSession() {
+        if (doc != nullptr) {
+            FPDF_CloseDocument(doc);
+            doc = nullptr;
+        }
+        if (fileAccess.nativeFd >= 0) {
+            close(fileAccess.nativeFd);
+            fileAccess.nativeFd = -1;
+        }
+    }
+};
+
+std::mutex g_sessionsMutex;
+std::unordered_map<int64_t, std::unique_ptr<DocumentSession>> g_sessions;
 
 // 静态文件访问回调对接 Linux pread64
 // 杜绝将整个几百 MB 的 PDF 读入内存
@@ -38,6 +60,10 @@ bool PdfiumBridge::initializeEngine() {
 
 void PdfiumBridge::destroyEngine() {
     LOGD("Destroying PDFium Engine...");
+    {
+        std::lock_guard<std::mutex> lock(g_sessionsMutex);
+        g_sessions.clear();
+    }
     FPDF_DestroyLibrary();
 }
 
@@ -48,41 +74,62 @@ int64_t PdfiumBridge::openDocumentWithFd(int fd, int64_t size, const char* passw
         return 0;
     }
 
-    auto* fileAccess = new NativeFileAccess{fd, size};
-    FPDF_FILEACCESS access;
+    // 复制独立的 FD 所有权，避免 Kotlin 层关闭 ParcelFileDescriptor 导致后台读取失效
+    int dupFd = dup(fd);
+    if (dupFd < 0) {
+        LOGE("dup(fd) failed");
+        return 0;
+    }
+
+    auto session = std::make_unique<DocumentSession>();
+    session->fileAccess = NativeFileAccess{dupFd, size};
+
+    FPDF_FILEACCESS access{};
     access.m_FileLen = static_cast<unsigned long>(size);
     access.m_GetBlock = ReadBlockCallback;
-    access.m_Param = fileAccess;
+    access.m_Param = &session->fileAccess;
 
     FPDF_DOCUMENT doc = FPDF_LoadCustomDocument(&access, password);
     if (!doc) {
-        LOGE("FPDF_LoadCustomDocument failed for fd: %d", fd);
-        // 保底返回包装指针供容错
-        return reinterpret_cast<int64_t>(fileAccess);
+        LOGE("FPDF_LoadCustomDocument failed, error code: %lu", FPDF_GetLastError());
+        // 析构函数会自动 close(dupFd)，严禁强转返回非法的指针！
+        return 0;
     }
 
-    return reinterpret_cast<int64_t>(doc);
+    session->doc = doc;
+    int64_t handle = reinterpret_cast<int64_t>(doc);
+
+    std::lock_guard<std::mutex> lock(g_sessionsMutex);
+    g_sessions[handle] = std::move(session);
+    return handle;
 }
 
 void PdfiumBridge::closeDocument(int64_t docHandle) {
     if (docHandle == 0) return;
-    auto* doc = reinterpret_cast<FPDF_DOCUMENT>(docHandle);
-    LOGD("Closing PDF document handle: %p", doc);
-    FPDF_CloseDocument(doc);
+    std::lock_guard<std::mutex> lock(g_sessionsMutex);
+    // erase 会触发 ~DocumentSession()，依次安全释放 FPDF_DOCUMENT、NativeFileAccess 和 dupFd
+    g_sessions.erase(docHandle);
 }
 
 int PdfiumBridge::getPageCount(int64_t docHandle) {
     if (docHandle == 0) return 0;
-    auto* doc = reinterpret_cast<FPDF_DOCUMENT>(docHandle);
-    int count = FPDF_GetPageCount(doc);
+    std::lock_guard<std::mutex> lock(g_sessionsMutex);
+    auto it = g_sessions.find(docHandle);
+    if (it == g_sessions.end() || !it->second->doc) return 0;
+
+    int count = FPDF_GetPageCount(it->second->doc);
     return count > 0 ? count : 1;
 }
 
 PageInfo PdfiumBridge::getPageInfo(int64_t docHandle, int pageIndex) {
     PageInfo info{pageIndex, 595.276f, 841.89f, 0}; // 默认标准 A4 (单位: pt)
     if (docHandle == 0) return info;
-    auto* doc = reinterpret_cast<FPDF_DOCUMENT>(docHandle);
-    FPDF_PAGE page = FPDF_LoadPage(doc, pageIndex);
+
+    std::lock_guard<std::mutex> lock(g_sessionsMutex);
+    auto it = g_sessions.find(docHandle);
+    if (it == g_sessions.end() || !it->second->doc) return info;
+
+    FPDF_PAGE page = FPDF_LoadPage(it->second->doc, pageIndex);
     if (page) {
         info.widthPt = FPDF_GetPageWidthF(page);
         info.heightPt = FPDF_GetPageHeightF(page);
@@ -102,7 +149,16 @@ bool PdfiumBridge::renderPageTileToBuffer(
         return false;
     }
 
-    auto* doc = reinterpret_cast<FPDF_DOCUMENT>(docHandle);
+    FPDF_DOCUMENT doc = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_sessionsMutex);
+        auto it = g_sessions.find(docHandle);
+        if (it == g_sessions.end() || !it->second->doc) {
+            return false;
+        }
+        doc = it->second->doc;
+    }
+
     FPDF_PAGE page = FPDF_LoadPage(doc, params.pageIndex);
 
     // 1. 创建基于外部 Android Bitmap 锁存像素缓冲区的 FPDF_BITMAP (BGRA/RGBA)

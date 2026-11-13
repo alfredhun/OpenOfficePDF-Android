@@ -52,8 +52,13 @@ for item in "${TARGETS[@]}"; do
 done
 
 if [ "$CHECKED" -eq 0 ]; then
-    echo ">>> Notice: No shared libraries were supplied for inspection."
-    exit 0
+    if [ "${CI_STRICT_16KB:-0}" = "1" ]; then
+        echo ">>> Error: CI strict mode enabled, but no shared libraries were found to inspect!"
+        exit 1
+    else
+        echo ">>> Notice: No shared libraries were supplied for inspection."
+        exit 0
+    fi
 fi
 
 if [ "$FAILED" -ne 0 ]; then

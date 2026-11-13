@@ -173,165 +173,170 @@ fun WordDocumentSurface(
     viewMode: WordLayoutViewMode,
     parsedDocx: com.openofficepdf.engine.office.openxml.ParsedDocxDocument?
 ) {
-    val blocks = parsedDocx?.blocks
+    val blocks = parsedDocx?.blocks.orEmpty()
+    val isPrintMode = viewMode == WordLayoutViewMode.PRINT_LAYOUT
 
-    if (viewMode == WordLayoutViewMode.PRINT_LAYOUT) {
-        // 打印视图：仿照物理 A4 纸张呈现（带阴影与页边距）
-        androidx.compose.foundation.lazy.LazyColumn(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            item {
+    androidx.compose.foundation.lazy.LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isPrintMode) Color(0xFFE8E8E8) else Color.White)
+            .padding(horizontal = if (isPrintMode) 16.dp else 16.dp, vertical = if (isPrintMode) 16.dp else 20.dp)
+    ) {
+        // 顶部状态栏 / 页眉
+        item(key = "header") {
+            if (isPrintMode) {
                 Surface(
-                    shadowElevation = 6.dp,
-                    shape = RoundedCornerShape(2.dp),
                     color = Color.White,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wrapContentHeight()
-                        .border(1.dp, Color(0xFFD0D0D0))
-                        .padding(24.dp)
+                        .padding(horizontal = 0.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "页眉：${parsedDocx?.title ?: "OpenOfficePDF 离线文档"}",
-                            fontSize = 11.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.align(Alignment.End)
+                    Text(
+                        text = "页眉：${parsedDocx?.title ?: "OpenOfficePDF 离线文档"}",
+                        fontSize = 11.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 12.dp)
+                    )
+                }
+            } else {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        if (blocks.isNullOrEmpty()) {
-                            Text(
-                                text = "DOCX 打印版式排版预览",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "当前处于固定 A4 纸张打印模式。点击右上角文件夹图标可打开手机本地真实 .docx 文件。",
-                                fontSize = 14.sp,
-                                lineHeight = 22.sp
-                            )
-                        } else {
-                            blocks.forEach { block ->
-                                when (block) {
-                                    is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock -> {
-                                        val p = block.paragraph
-                                        Text(
-                                            text = p.fullText,
-                                            fontSize = if (p.isHeading) (14 + maxOf(0, 6 - p.headingLevel.coerceIn(1, 6)) * 2).sp else 14.sp,
-                                            fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
-                                            fontStyle = if (p.runs.any { it.isItalic }) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
-                                            lineHeight = 22.sp,
-                                            modifier = Modifier.padding(vertical = 4.dp)
-                                        )
-                                    }
-                                    is com.openofficepdf.engine.office.openxml.DocxBlock.TableBlock -> {
-                                        // 简单表格展示
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .border(1.dp, Color.LightGray)
-                                                .padding(4.dp)
-                                        ) {
-                                            block.table.rows.forEach { row ->
-                                                Row(modifier = Modifier.fillMaxWidth()) {
-                                                    row.forEach { cell ->
-                                                        Text(
-                                                            text = cell.text,
-                                                            fontSize = 13.sp,
-                                                            modifier = Modifier
-                                                                .weight(1f)
-                                                                .border(0.5.dp, Color.LightGray)
-                                                                .padding(4.dp)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "移动端自适应排版已激活：${parsedDocx?.totalWords ?: 0} 字，自动换行无横向滚动",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     }
                 }
             }
         }
-    } else {
-        // 移动端自适应重排视图：去除固定纸张边界与横向滚动限制，边距收紧自适应屏幕
-        androidx.compose.foundation.lazy.LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White)
-                .padding(horizontal = 16.dp, vertical = 20.dp)
-        ) {
-            item {
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-                ) {
-                    Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("移动端自适应排版已激活：${parsedDocx?.totalWords ?: 0} 字，自动换行无横向滚动", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                    }
-                }
-            }
 
-            if (blocks.isNullOrEmpty()) {
-                item {
-                    Text(
-                        text = "DOCX 移动端流式重排排版",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "本模式专为手机屏幕打造，通过 OpenXML 引擎重排 DOM 节点，使段落和表格自适应手机屏幕宽度，无需频繁双指缩放和横向平移，阅读与打字输入体验倍增。",
-                        fontSize = 15.sp,
-                        lineHeight = 24.sp
-                    )
-                }
-            } else {
-                items(blocks.size) { idx ->
-                    when (val block = blocks[idx]) {
-                        is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock -> {
-                            val p = block.paragraph
+        // 空状态占位
+        if (blocks.isEmpty()) {
+            item(key = "empty_placeholder") {
+                EmptyDocxPlaceholder(isPrintMode = isPrintMode)
+            }
+        } else {
+            // 统一使用懒加载 items，彻底解决打印模式长文档卡顿问题
+            items(
+                count = blocks.size,
+                key = { idx -> "block_$idx" }
+            ) { idx ->
+                DocxBlockItem(
+                    block = blocks[idx],
+                    isPrintMode = isPrintMode
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyDocxPlaceholder(isPrintMode: Boolean) {
+    if (isPrintMode) {
+        Surface(
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)
+        ) {
+            Column {
+                Text(
+                    text = "DOCX 打印版式排版预览",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "当前处于固定 A4 纸张打印模式。点击右上角文件夹图标可打开手机本地真实 .docx 文件。",
+                    fontSize = 14.sp,
+                    lineHeight = 22.sp
+                )
+            }
+        }
+    } else {
+        Column {
+            Text(
+                text = "DOCX 移动端流式重排排版",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "本模式专为手机屏幕打造，通过 OpenXML 引擎重排 DOM 节点，使段落和表格自适应手机屏幕宽度，无需频繁双指缩放和横向平移，阅读与打字输入体验倍增。",
+                fontSize = 15.sp,
+                lineHeight = 24.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun DocxBlockItem(
+    block: com.openofficepdf.engine.office.openxml.DocxBlock,
+    isPrintMode: Boolean
+) {
+    val containerModifier = if (isPrintMode) {
+        Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 24.dp, vertical = 4.dp)
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    }
+
+    when (block) {
+        is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock -> {
+            val p = block.paragraph
+            val baseFontSize = if (isPrintMode) 14 else 15
+            Text(
+                text = p.fullText,
+                fontSize = if (p.isHeading) {
+                    (14 + maxOf(0, 6 - p.headingLevel.coerceIn(1, 6)) * 2).sp
+                } else {
+                    baseFontSize.sp
+                },
+                fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
+                fontStyle = if (p.runs.any { it.isItalic }) {
+                    androidx.compose.ui.text.font.FontStyle.Italic
+                } else {
+                    androidx.compose.ui.text.font.FontStyle.Normal
+                },
+                lineHeight = if (isPrintMode) 22.sp else 24.sp,
+                modifier = containerModifier
+            )
+        }
+        is com.openofficepdf.engine.office.openxml.DocxBlock.TableBlock -> {
+            val borderColor = if (isPrintMode) Color.LightGray else MaterialTheme.colorScheme.outlineVariant
+            Column(
+                modifier = containerModifier
+                    .border(1.dp, borderColor)
+                    .padding(4.dp)
+            ) {
+                block.table.rows.forEach { row ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        row.forEach { cell ->
                             Text(
-                                text = p.fullText,
-                                fontSize = if (p.isHeading) (14 + maxOf(0, 6 - p.headingLevel.coerceIn(1, 6)) * 2).sp else 15.sp,
-                                fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
-                                fontStyle = if (p.runs.any { it.isItalic }) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
-                                lineHeight = 24.sp,
-                                modifier = Modifier.padding(vertical = 4.dp)
-                            )
-                        }
-                        is com.openofficepdf.engine.office.openxml.DocxBlock.TableBlock -> {
-                            Column(
+                                text = cell.text,
+                                fontSize = 13.sp,
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                    .padding(4.dp)
-                            ) {
-                                block.table.rows.forEach { row ->
-                                    Row(modifier = Modifier.fillMaxWidth()) {
-                                        row.forEach { cell ->
-                                            Text(
-                                                text = cell.text,
-                                                fontSize = 13.sp,
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
-                                                    .padding(6.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                                    .weight(1f)
+                                    .border(0.5.dp, borderColor)
+                                    .padding(if (isPrintMode) 4.dp else 6.dp)
+                            )
                         }
                     }
                 }

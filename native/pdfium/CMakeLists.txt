@@ -20,5 +20,3 @@ target_link_libraries(pdfium_bridge
     jnigraphics
     log
 )
-
-target_link_options(pdfium_bridge PRIVATE "-Wl,-z,max-page-size=16384")
