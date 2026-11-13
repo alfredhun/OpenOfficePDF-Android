@@ -173,15 +173,15 @@ fun ConverterScreen(
 
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = uiState.qualityAssessment.riskDescription,
-                        style = MaterialTheme.typography.bodyMedium
+                        text = uiState.qualityAssessment.titleWarning,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "建议对策: ${uiState.qualityAssessment.suggestedAction}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold
+                        text = uiState.qualityAssessment.detailedNotice,
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
