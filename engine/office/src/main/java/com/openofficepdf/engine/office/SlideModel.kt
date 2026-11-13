@@ -22,7 +22,8 @@ data class SlidePage(
     val notes: String? = null,
     val widthPt: Float = 960f,  // 16:9 标准尺寸
     val heightPt: Float = 540f,
-    val strokes: List<SlideInkStroke> = emptyList()
+    val strokes: List<SlideInkStroke> = emptyList(),
+    val imageBytesList: List<ByteArray> = emptyList()
 )
 
 /**

@@ -266,15 +266,84 @@ fun HomeScreen(
                 }
             }
 
-            // 2. 高颜值 "+ 空白新建" 快速横幅
+            // 2. 高颜值 "+ 空白新建" 快速横幅 (支持选择新建 Word / Excel / Markdown)
             item {
+                var showCreateSheet by remember { mutableStateOf(false) }
+
+                if (showCreateSheet) {
+                    AlertDialog(
+                        onDismissRequest = { showCreateSheet = false },
+                        title = { Text("选择新建文档类型", fontWeight = FontWeight.Bold) },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        showCreateSheet = false
+                                        onEntryClick("word")
+                                    }
+                                ) {
+                                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Description, contentDescription = null, tint = Color(0xFF2563EB))
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text("空白 Word 文档 (.docx)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                            Text("图文排版、段落与表格撰写", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                        }
+                                    }
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        showCreateSheet = false
+                                        onEntryClick("excel")
+                                    }
+                                ) {
+                                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.TableChart, contentDescription = null, tint = Color(0xFF059669))
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text("空白 Excel 工作簿 (.xlsx)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                            Text("公式计算、多表格与数据录入", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                        }
+                                    }
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        showCreateSheet = false
+                                        onEntryClick("markdown")
+                                    }
+                                ) {
+                                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.EditNote, contentDescription = null, tint = Color(0xFFD97706))
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text("空白 Markdown 笔记 (.md)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                            Text("轻量级文档与数学公式笔记", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showCreateSheet = false }) {
+                                Text("取消")
+                            }
+                        }
+                    )
+                }
+
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onEntryClick("word") }
+                        .clickable { showCreateSheet = true }
                 ) {
                     Row(
                         modifier = Modifier
@@ -301,13 +370,13 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "新建空白文档 / 笔记本",
+                                    text = "新建空白文档 / 表格",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Text(
-                                    text = "轻点开启本地 Word / Markdown 创作",
+                                    text = "轻点开启本地 Word / Excel / Markdown 创作",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                                 )

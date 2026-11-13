@@ -30,12 +30,17 @@ object PptxDocumentParser {
         }
 
         val entries = mutableMapOf<String, ByteArray>()
+        val mediaFiles = mutableMapOf<String, ByteArray>()
         val zip = ZipInputStream(ByteArrayInputStream(bytes))
         var entry: ZipEntry? = try { zip.nextEntry } catch (_: Exception) { null }
         while (entry != null) {
             val name = entry.name
-            if (name == "ppt/presentation.xml" || name.startsWith("ppt/slides/slide") && name.endsWith(".xml")) {
+            if (name == "ppt/presentation.xml" || 
+                (name.startsWith("ppt/slides/slide") && name.endsWith(".xml")) ||
+                (name.startsWith("ppt/slides/_rels/slide") && name.endsWith(".xml.rels"))) {
                 entries[name] = zip.readBytes()
+            } else if (name.startsWith("ppt/media/")) {
+                mediaFiles[name] = zip.readBytes()
             }
             try {
                 zip.closeEntry()
@@ -50,7 +55,7 @@ object PptxDocumentParser {
 
         // 2. 按顺序提取每页幻灯片内容
         val slideKeys = entries.keys
-            .filter { it.startsWith("ppt/slides/slide") && it.endsWith(".xml") }
+            .filter { it.startsWith("ppt/slides/slide") && it.endsWith(".xml") && !it.contains("_rels") }
             .sortedBy { key ->
                 // 按数字排序 slide1, slide2, slide10
                 key.filter { it.isDigit() }.toIntOrNull() ?: 0
@@ -59,7 +64,32 @@ object PptxDocumentParser {
         val slides = mutableListOf<PptxSlideContent>()
         slideKeys.forEachIndexed { index, key ->
             val slideBytes = entries[key] ?: return@forEachIndexed
-            val content = parseSlide(slideBytes, defaultTitle = "幻灯片 ${index + 1}")
+            // 查找关联的 .rels 文件以获取图片依赖
+            val slideFileName = key.substringAfterLast('/')
+            val relsKey = "ppt/slides/_rels/$slideFileName.rels"
+            val relsBytes = entries[relsKey]
+            val imageTargets = parseSlideRelationshipsForImages(relsBytes)
+
+            val slideImages = mutableListOf<ByteArray>()
+            for (target in imageTargets) {
+                // target 可能是 ../media/image1.png 或 media/image1.png
+                val mediaKey = if (target.startsWith("../media/")) {
+                    "ppt/media/" + target.removePrefix("../media/")
+                } else if (target.startsWith("media/")) {
+                    "ppt/media/" + target.removePrefix("media/")
+                } else {
+                    "ppt/media/$target"
+                }
+                mediaFiles[mediaKey]?.let { slideImages.add(it) }
+            }
+
+            // 如果未能从 .rels 匹配，但 ppt/media 存在图片且每页一张，可按页兜底分配
+            if (slideImages.isEmpty() && mediaFiles.isNotEmpty() && index < mediaFiles.size) {
+                val fallbackMedia = mediaFiles.values.toList().getOrNull(index)
+                if (fallbackMedia != null) slideImages.add(fallbackMedia)
+            }
+
+            val content = parseSlide(slideBytes, defaultTitle = "幻灯片 ${index + 1}", images = slideImages)
             slides.add(content)
         }
 
@@ -93,7 +123,30 @@ object PptxDocumentParser {
         return 960f to 540f
     }
 
-    private fun parseSlide(bytes: ByteArray, defaultTitle: String): PptxSlideContent {
+    private fun parseSlideRelationshipsForImages(bytes: ByteArray?): List<String> {
+        if (bytes == null) return emptyList()
+        val imageTargets = mutableListOf<String>()
+        val parser = Xml.newPullParser()
+        parser.setInput(ByteArrayInputStream(bytes), "UTF-8")
+
+        var eventType = parser.eventType
+        while (eventType != XmlPullParser.END_DOCUMENT) {
+            if (eventType == XmlPullParser.START_TAG && parser.name == "Relationship") {
+                val type = parser.getAttributeValue(null, "Type") ?: ""
+                val target = parser.getAttributeValue(null, "Target") ?: ""
+                if (type.contains("image", ignoreCase = true) || 
+                    target.endsWith(".png", ignoreCase = true) || 
+                    target.endsWith(".jpg", ignoreCase = true) || 
+                    target.endsWith(".jpeg", ignoreCase = true)) {
+                    imageTargets.add(target)
+                }
+            }
+            eventType = parser.next()
+        }
+        return imageTargets
+    }
+
+    private fun parseSlide(bytes: ByteArray, defaultTitle: String, images: List<ByteArray> = emptyList()): PptxSlideContent {
         val parser = Xml.newPullParser()
         parser.setInput(ByteArrayInputStream(bytes), "UTF-8")
 
@@ -130,7 +183,8 @@ object PptxDocumentParser {
 
         return PptxSlideContent(
             title = title,
-            paragraphs = bodyParagraphs
+            paragraphs = bodyParagraphs,
+            imageBytesList = images
         )
     }
 }

@@ -354,65 +354,7 @@ fun PdfInteractiveCanvas(
     var dragEnd by remember { mutableStateOf<Offset?>(null) }
 
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(uiState.interactionMode) {
-                if (uiState.interactionMode == PdfInteractionMode.VIEW) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(0.5f, 6.0f)
-                        offset += pan
-                    }
-                } else if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) {
-                    detectTapGestures { tapOffset ->
-                        for (obj in uiState.pageObjects) {
-                            val screenRect = NormalizedCoordinatesTransformer.normalizedPtToScreen(
-                                boundsPt = obj.boundsPt,
-                                scale = scale,
-                                viewportOffsetX = offset.x,
-                                viewportOffsetY = offset.y
-                            )
-                            if (screenRect.contains(tapOffset.x, tapOffset.y)) {
-                                onObjectClicked(obj)
-                                break
-                            }
-                        }
-                    }
-                } else if (uiState.interactionMode == PdfInteractionMode.OVERLAY_EDIT ||
-                           uiState.interactionMode == PdfInteractionMode.TRUE_REDACTION) {
-                    detectDragGestures(
-                        onDragStart = { start ->
-                            dragStart = start
-                            dragEnd = start
-                        },
-                        onDrag = { change, _ ->
-                            dragEnd = change.position
-                        },
-                        onDragEnd = {
-                            val start = dragStart
-                            val end = dragEnd
-                            if (start != null && end != null) {
-                                val left = minOf(start.x, end.x)
-                                val top = minOf(start.y, end.y)
-                                val right = maxOf(start.x, end.x)
-                                val bottom = maxOf(start.y, end.y)
-
-                                val ptRect = NormalizedCoordinatesTransformer.screenToNormalizedPt(
-                                    screenX = left,
-                                    screenY = top,
-                                    screenWidth = right - left,
-                                    screenHeight = bottom - top,
-                                    scale = scale,
-                                    viewportOffsetX = offset.x,
-                                    viewportOffsetY = offset.y
-                                )
-                                onRegionSelected(ptRect)
-                            }
-                            dragStart = null
-                            dragEnd = null
-                        }
-                    )
-                }
-            }
+        modifier = Modifier.fillMaxSize()
     ) {
         val screenWidthPx = constraints.maxWidth.toFloat()
         val screenHeightPx = constraints.maxHeight.toFloat()
@@ -433,7 +375,68 @@ fun PdfInteractiveCanvas(
         val pageLeft = offset.x + if (pageWidthPx < screenWidthPx) (screenWidthPx - pageWidthPx) / 2f else 0f
         val pageTop = offset.y + if (pageHeightPx < screenHeightPx) (screenHeightPx - pageHeightPx) / 2f else 0f
 
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(uiState.interactionMode, effectiveScale, pageLeft, pageTop) {
+                    if (uiState.interactionMode == PdfInteractionMode.VIEW) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(0.5f, 6.0f)
+                            offset += pan
+                        }
+                    } else if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) {
+                        detectTapGestures { tapOffset ->
+                            for (obj in uiState.pageObjects) {
+                                val screenRect = NormalizedCoordinatesTransformer.normalizedPtToScreen(
+                                    boundsPt = obj.boundsPt,
+                                    scale = effectiveScale,
+                                    viewportOffsetX = pageLeft,
+                                    viewportOffsetY = pageTop
+                                )
+                                if (screenRect.contains(tapOffset.x, tapOffset.y)) {
+                                    onObjectClicked(obj)
+                                    break
+                                }
+                            }
+                        }
+                    } else if (uiState.interactionMode == PdfInteractionMode.OVERLAY_EDIT ||
+                               uiState.interactionMode == PdfInteractionMode.TRUE_REDACTION) {
+                        detectDragGestures(
+                            onDragStart = { start ->
+                                dragStart = start
+                                dragEnd = start
+                            },
+                            onDrag = { change, _ ->
+                                dragEnd = change.position
+                            },
+                            onDragEnd = {
+                                val start = dragStart
+                                val end = dragEnd
+                                if (start != null && end != null) {
+                                    val left = minOf(start.x, end.x)
+                                    val top = minOf(start.y, end.y)
+                                    val right = maxOf(start.x, end.x)
+                                    val bottom = maxOf(start.y, end.y)
+
+                                    val ptRect = NormalizedCoordinatesTransformer.screenToNormalizedPt(
+                                        screenX = left,
+                                        screenY = top,
+                                        screenWidth = right - left,
+                                        screenHeight = bottom - top,
+                                        scale = effectiveScale,
+                                        viewportOffsetX = pageLeft,
+                                        viewportOffsetY = pageTop
+                                    )
+                                    onRegionSelected(ptRect)
+                                }
+                                dragStart = null
+                                dragEnd = null
+                            }
+                        )
+                    }
+                }
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
             val bitmap = uiState.renderedBitmap
 
             if (bitmap != null && !bitmap.isRecycled) {
@@ -525,6 +528,7 @@ fun PdfInteractiveCanvas(
             }
         }
     }
+}
 }
 
 @Composable

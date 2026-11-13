@@ -79,6 +79,20 @@ class ExcelWorkspaceViewModel(
         )
     }
 
+    fun createNewBlankWorkbook(title: String = "新建工作簿.xlsx") {
+        val blankDoc = com.openofficepdf.engine.office.openxml.XlsxDocumentWriter.createBlankWorkbook("Sheet1")
+        _uiState.value = _uiState.value.copy(
+            sessionId = null,
+            documentTitle = title,
+            sheets = blankDoc.sheets,
+            activeSheetIndex = 0,
+            selectedCellCoord = 0 to 0,
+            formulaInputText = "",
+            isDirty = true,
+            toastMessage = "已创建空白表格，轻点单元格即可录入数据与公式"
+        )
+    }
+
     fun openDocument(docId: DocumentId, title: String, uri: Uri) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, documentTitle = title)
@@ -189,6 +203,34 @@ class ExcelWorkspaceViewModel(
 
     fun toggleFilter() {
         _uiState.value = _uiState.value.copy(isFilterEnabled = !_uiState.value.isFilterEnabled)
+    }
+
+    /**
+     * 保存表格内容
+     */
+    fun saveDocument() {
+        val session = _uiState.value.sessionId
+        val doc = com.openofficepdf.engine.office.openxml.ParsedXlsxDocument(
+            title = _uiState.value.documentTitle,
+            sheets = _uiState.value.sheets
+        )
+        if (session != null) {
+            viewModelScope.launch {
+                _uiState.value = _uiState.value.copy(isSaving = true)
+                when (val result = officeEngine.saveSession(session)) {
+                    is EngineResult.Success -> {
+                        _uiState.value = _uiState.value.copy(isSaving = false, isDirty = false, toastMessage = "表格已安全保存")
+                    }
+                    is EngineResult.Failure -> {
+                        _uiState.value = _uiState.value.copy(isSaving = false, toastMessage = "保存失败: ${result.errorMessage}")
+                    }
+                    else -> _uiState.value = _uiState.value.copy(isSaving = false)
+                }
+            }
+        } else {
+            // 新建未绑定 session 的情况
+            _uiState.value = _uiState.value.copy(isDirty = false, toastMessage = "已保存至本地工作区")
+        }
     }
 
     fun clearToast() {

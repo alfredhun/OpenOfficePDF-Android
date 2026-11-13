@@ -101,26 +101,62 @@ class WordWorkspaceViewModel(
      * 排版命令派发 (加粗、斜体、下划线、插入表格等)
      */
     fun toggleBold() {
+        val currentDoc = _uiState.value.parsedDocx
+        val newBold = !_uiState.value.isBold
+        _uiState.value = _uiState.value.copy(isBold = newBold, isDirty = true)
+        if (currentDoc != null && currentDoc.blocks.isNotEmpty()) {
+            val updatedBlocks = currentDoc.blocks.map { block ->
+                if (block is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock) {
+                    val p = block.paragraph
+                    val updatedRuns = p.runs.map { it.copy(isBold = newBold) }
+                    com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock(p.copy(runs = updatedRuns))
+                } else block
+            }
+            _uiState.value = _uiState.value.copy(parsedDocx = currentDoc.copy(blocks = updatedBlocks))
+        }
         val session = _uiState.value.sessionId ?: return
         viewModelScope.launch {
             officeEngine.executeCommand(session, ".uno:Bold", "{}")
-            _uiState.value = _uiState.value.copy(isBold = !_uiState.value.isBold, isDirty = true)
         }
     }
 
     fun toggleItalic() {
+        val currentDoc = _uiState.value.parsedDocx
+        val newItalic = !_uiState.value.isItalic
+        _uiState.value = _uiState.value.copy(isItalic = newItalic, isDirty = true)
+        if (currentDoc != null && currentDoc.blocks.isNotEmpty()) {
+            val updatedBlocks = currentDoc.blocks.map { block ->
+                if (block is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock) {
+                    val p = block.paragraph
+                    val updatedRuns = p.runs.map { it.copy(isItalic = newItalic) }
+                    com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock(p.copy(runs = updatedRuns))
+                } else block
+            }
+            _uiState.value = _uiState.value.copy(parsedDocx = currentDoc.copy(blocks = updatedBlocks))
+        }
         val session = _uiState.value.sessionId ?: return
         viewModelScope.launch {
             officeEngine.executeCommand(session, ".uno:Italic", "{}")
-            _uiState.value = _uiState.value.copy(isItalic = !_uiState.value.isItalic, isDirty = true)
         }
     }
 
     fun toggleUnderline() {
+        val currentDoc = _uiState.value.parsedDocx
+        val newUnderline = !_uiState.value.isUnderline
+        _uiState.value = _uiState.value.copy(isUnderline = newUnderline, isDirty = true)
+        if (currentDoc != null && currentDoc.blocks.isNotEmpty()) {
+            val updatedBlocks = currentDoc.blocks.map { block ->
+                if (block is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock) {
+                    val p = block.paragraph
+                    val updatedRuns = p.runs.map { it.copy(isUnderline = newUnderline) }
+                    com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock(p.copy(runs = updatedRuns))
+                } else block
+            }
+            _uiState.value = _uiState.value.copy(parsedDocx = currentDoc.copy(blocks = updatedBlocks))
+        }
         val session = _uiState.value.sessionId ?: return
         viewModelScope.launch {
             officeEngine.executeCommand(session, ".uno:Underline", "{}")
-            _uiState.value = _uiState.value.copy(isUnderline = !_uiState.value.isUnderline, isDirty = true)
         }
     }
 

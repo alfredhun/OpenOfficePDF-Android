@@ -18,7 +18,8 @@ data class ParsedXlsxDocument(
 data class PptxSlideContent(
     val title: String,
     val paragraphs: List<String> = emptyList(),
-    val notes: String? = null
+    val notes: String? = null,
+    val imageBytesList: List<ByteArray> = emptyList()
 )
 
 /**

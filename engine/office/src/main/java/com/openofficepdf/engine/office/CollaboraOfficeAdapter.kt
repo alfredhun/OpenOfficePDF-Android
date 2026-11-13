@@ -256,6 +256,13 @@ class CollaboraOfficeAdapter(
             } catch (_: Exception) { }
         }
 
+        // 若内存中有修改后的 parsedXlsx，写回 stagingFile
+        session.parsedXlsx?.let { xlsx ->
+            try {
+                com.openofficepdf.engine.office.openxml.XlsxDocumentWriter.writeXlsxToZip(session.stagingFile, xlsx)
+            } catch (_: Exception) { }
+        }
+
         val destUri = targetUri ?: session.originalUri
         if (destUri != null) {
             val commitResult = committer.commitTransaction(

@@ -83,6 +83,10 @@ fun ExcelWorkspaceScreen(
                         }
                     }
 
+                    IconButton(onClick = { viewModel.createNewBlankWorkbook() }) {
+                        Icon(Icons.Default.Add, contentDescription = "新建空白表格")
+                    }
+
                     IconButton(onClick = { launcher.launch(arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel", "*/*")) }) {
                         Icon(Icons.Default.FolderOpen, contentDescription = "打开表格")
                     }
@@ -94,11 +98,12 @@ fun ExcelWorkspaceScreen(
                             tint = if (uiState.isFilterEnabled) MaterialTheme.colorScheme.primary else LocalContentColor.current
                         )
                     }
-                    IconButton(onClick = { /* 导出 PDF */ }) {
-                        Icon(Icons.Default.PictureAsPdf, contentDescription = "导出为 PDF")
-                    }
-                    IconButton(onClick = { /* 事务保存 */ }) {
-                        Icon(Icons.Default.Save, contentDescription = "保存")
+                    IconButton(onClick = { viewModel.saveDocument() }) {
+                        if (uiState.isSaving) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Save, contentDescription = "保存")
+                        }
                     }
                 }
             )

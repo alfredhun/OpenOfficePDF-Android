@@ -264,23 +264,56 @@ fun SlideDisplaySurface(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(32.dp),
+                        .padding(24.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = slide.title,
-                        fontSize = 24.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1E1E1E)
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     slide.notes?.let {
-                        Text(
-                            text = it,
-                            fontSize = 15.sp,
-                            color = Color.Gray
-                        )
+                        if (it.isNotEmpty()) {
+                            Text(
+                                text = it,
+                                fontSize = 14.sp,
+                                color = Color.DarkGray
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
+                    }
+
+                    // 渲染提取到的幻灯片图片
+                    if (slide.imageBytesList.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 160.dp)
+                        ) {
+                            for (imgBytes in slide.imageBytesList) {
+                                val bmp = remember(imgBytes) {
+                                    try {
+                                        android.graphics.BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.size)
+                                    } catch (_: Exception) {
+                                        null
+                                    }
+                                }
+                                if (bmp != null) {
+                                    androidx.compose.foundation.Image(
+                                        bitmap = bmp.asImageBitmap(),
+                                        contentDescription = "幻灯片插图",
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .border(1.dp, Color.LightGray, RoundedCornerShape(4.dp))
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 

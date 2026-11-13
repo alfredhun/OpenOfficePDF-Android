@@ -69,7 +69,8 @@ class PresentationViewModel(
                                 title = slide.title,
                                 notes = slide.paragraphs.joinToString("\n"),
                                 widthPt = parsed.slideWidthPt,
-                                heightPt = parsed.slideHeightPt
+                                heightPt = parsed.slideHeightPt,
+                                imageBytesList = slide.imageBytesList
                             )
                         }
                         _uiState.value = _uiState.value.copy(
