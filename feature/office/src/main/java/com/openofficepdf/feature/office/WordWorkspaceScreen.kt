@@ -290,6 +290,7 @@ fun WordDocumentSurface(
         }
     }
 }
+}
 
 @Composable
 private fun EmptyDocxPlaceholder(isPrintMode: Boolean) {
