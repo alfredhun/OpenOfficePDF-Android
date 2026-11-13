@@ -14,16 +14,35 @@ import java.util.zip.ZipInputStream
 object PptxDocumentParser {
 
     fun parse(inputStream: InputStream, title: String = "演示文稿.pptx"): ParsedPptxDocument {
+        val bytes = try {
+            inputStream.readBytes()
+        } catch (e: Exception) {
+            return ParsedPptxDocument(title, emptyList())
+        }
+
+        // 校验 ZIP 魔数: PK\x03\x04
+        if (bytes.size < 4 || bytes[0] != 0x50.toByte() || bytes[1] != 0x4B.toByte() || bytes[2] != 0x03.toByte() || bytes[3] != 0x04.toByte()) {
+            val fallbackSlide = PptxSlideContent(
+                title = "格式兼容提示",
+                paragraphs = listOf("【格式不支持】该演示文稿并非标准 OpenXML (.pptx) 格式，可能为旧版 .ppt 或加密文档。")
+            )
+            return ParsedPptxDocument(title, listOf(fallbackSlide))
+        }
+
         val entries = mutableMapOf<String, ByteArray>()
-        val zip = ZipInputStream(inputStream)
-        var entry: ZipEntry? = zip.nextEntry
+        val zip = ZipInputStream(ByteArrayInputStream(bytes))
+        var entry: ZipEntry? = try { zip.nextEntry } catch (_: Exception) { null }
         while (entry != null) {
             val name = entry.name
             if (name == "ppt/presentation.xml" || name.startsWith("ppt/slides/slide") && name.endsWith(".xml")) {
                 entries[name] = zip.readBytes()
             }
-            zip.closeEntry()
-            entry = zip.nextEntry
+            try {
+                zip.closeEntry()
+                entry = zip.nextEntry
+            } catch (_: Exception) {
+                break
+            }
         }
 
         // 1. 解析幻灯片尺寸比例

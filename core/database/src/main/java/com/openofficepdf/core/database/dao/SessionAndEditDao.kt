@@ -26,6 +26,26 @@ interface SessionAndEditDao {
 
     @Query("DELETE FROM edit_operations WHERE session_id = :sessionId")
     suspend fun deleteOperationsForSession(sessionId: String)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertDocumentIgnore(document: com.openofficepdf.core.database.entity.DocumentEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSessionIgnore(session: DocumentSessionEntity)
+
+    /**
+     * 事务级安全写入编辑日志：严格按 祖父(Document) -> 父(Session) -> 子(Operation) 顺序落库，彻底避免 Code 787 外键冲突
+     */
+    @Transaction
+    suspend fun safeInsertOperation(
+        document: com.openofficepdf.core.database.entity.DocumentEntity,
+        session: DocumentSessionEntity,
+        operation: EditOperationEntity
+    ) {
+        insertDocumentIgnore(document)
+        insertSessionIgnore(session)
+        insertEditOperation(operation)
+    }
 }
 
 @Dao

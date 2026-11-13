@@ -13,8 +13,30 @@ import java.util.zip.ZipInputStream
 object DocxDocumentParser {
 
     fun parse(inputStream: InputStream, title: String = "文档.docx"): ParsedDocxDocument {
-        val zip = ZipInputStream(inputStream)
-        var entry: ZipEntry? = zip.nextEntry
+        val bytes = try {
+            inputStream.readBytes()
+        } catch (e: Exception) {
+            return ParsedDocxDocument(title, emptyList(), 0)
+        }
+
+        // 校验 ZIP 魔数: PK\x03\x04
+        if (bytes.size < 4 || bytes[0] != 0x50.toByte() || bytes[1] != 0x4B.toByte() || bytes[2] != 0x03.toByte() || bytes[3] != 0x04.toByte()) {
+            return ParsedDocxDocument(
+                title = title,
+                blocks = listOf(
+                    DocxBlock.ParagraphBlock(
+                        DocxParagraph(
+                            runs = listOf(DocxRun(text = "【格式不支持】该文档并非标准 OpenXML (.docx) 格式，可能为旧版二进制 .doc 或加密文档。")),
+                            isHeading = false
+                        )
+                    )
+                ),
+                totalWords = 0
+            )
+        }
+
+        val zip = ZipInputStream(ByteArrayInputStream(bytes))
+        var entry: ZipEntry? = try { zip.nextEntry } catch (_: Exception) { null }
         val blocks = mutableListOf<DocxBlock>()
 
         while (entry != null) {
@@ -22,8 +44,12 @@ object DocxDocumentParser {
                 parseDocumentXml(zip, blocks)
                 break
             }
-            zip.closeEntry()
-            entry = zip.nextEntry
+            try {
+                zip.closeEntry()
+                entry = zip.nextEntry
+            } catch (_: Exception) {
+                break
+            }
         }
 
         val totalWords = blocks.sumOf { block ->

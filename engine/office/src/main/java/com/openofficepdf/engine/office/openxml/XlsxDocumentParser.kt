@@ -17,17 +17,39 @@ import java.util.zip.ZipInputStream
 object XlsxDocumentParser {
 
     fun parse(inputStream: InputStream, title: String = "工作簿.xlsx"): ParsedXlsxDocument {
+        val bytes = try {
+            inputStream.readBytes()
+        } catch (e: Exception) {
+            return ParsedXlsxDocument(title, emptyList())
+        }
+
+        // 校验 ZIP 魔数: PK\x03\x04
+        if (bytes.size < 4 || bytes[0] != 0x50.toByte() || bytes[1] != 0x4B.toByte() || bytes[2] != 0x03.toByte() || bytes[3] != 0x04.toByte()) {
+            val fallbackSheet = SpreadsheetSheet(
+                sheetIndex = 0,
+                sheetName = "兼容提示",
+                totalRows = 1,
+                totalCols = 1,
+                cells = mapOf((0 to 0) to SpreadsheetCell(0, 0, "【格式不支持】该工作簿并非标准 OpenXML (.xlsx) 格式，可能为旧版 .xls 或已加密。"))
+            )
+            return ParsedXlsxDocument(title, listOf(fallbackSheet))
+        }
+
         // 由于 ZipInputStream 是单向流，将 entry 内容预先按名称分类保存在内存中
         val entries = mutableMapOf<String, ByteArray>()
-        val zip = ZipInputStream(inputStream)
-        var entry: ZipEntry? = zip.nextEntry
+        val zip = ZipInputStream(ByteArrayInputStream(bytes))
+        var entry: ZipEntry? = try { zip.nextEntry } catch (_: Exception) { null }
         while (entry != null) {
             val name = entry.name
             if (name == "xl/sharedStrings.xml" || name.startsWith("xl/worksheets/sheet") && name.endsWith(".xml") || name == "xl/workbook.xml") {
                 entries[name] = zip.readBytes()
             }
-            zip.closeEntry()
-            entry = zip.nextEntry
+            try {
+                zip.closeEntry()
+                entry = zip.nextEntry
+            } catch (_: Exception) {
+                break
+            }
         }
 
         // 1. 解析共享字符串池 (Shared Strings)
