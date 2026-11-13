@@ -94,7 +94,7 @@ class SearchablePdfSynthesizer(
 
             EngineResult.success(Unit)
         } catch (e: Exception) {
-            EngineResult.failure(EngineErrorCode.FILE_WRITE_FAILED, "合成双层 PDF 失败: ${e.message}")
+            EngineResult.failure(EngineErrorCode.IO_TRANSACTION_COMMIT_FAILED, "合成双层 PDF 失败: ${e.message}")
         }
     }
 

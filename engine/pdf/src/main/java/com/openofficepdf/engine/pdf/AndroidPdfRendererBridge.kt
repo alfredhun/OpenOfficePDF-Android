@@ -96,7 +96,7 @@ class AndroidPdfRendererBridge(
         session.mutex.withLock {
             if (pageIndex < 0 || pageIndex >= session.pageCount) {
                 return@withLock EngineResult.failure(
-                    EngineErrorCode.INVALID_PAGE_INDEX,
+                    EngineErrorCode.INVALID_PARAMETER,
                     "页码越界: $pageIndex, 总页数: ${session.pageCount}"
                 )
             }

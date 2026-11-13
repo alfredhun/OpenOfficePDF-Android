@@ -118,12 +118,12 @@ class RealDocumentConverter(
 
             context.contentResolver.openOutputStream(outputUri)?.use { outStream ->
                 pdfDocument.writeTo(outStream)
-            } ?: return@withContext EngineResult.failure(EngineErrorCode.FILE_WRITE_FAILED, "无法写入目标 PDF 文件")
+            } ?: return@withContext EngineResult.failure(EngineErrorCode.IO_TRANSACTION_COMMIT_FAILED, "无法写入目标 PDF 文件")
 
             pdfDocument.close()
             EngineResult.success(pageNum)
         } catch (e: Exception) {
-            EngineResult.failure(EngineErrorCode.UNEXPECTED, "DOCX 转 PDF 失败: ${e.message}")
+            EngineResult.failure(EngineErrorCode.UNKNOWN_ENGINE_ERROR, "DOCX 转 PDF 失败: ${e.message}")
         }
     }
 
@@ -190,12 +190,12 @@ class RealDocumentConverter(
 
             context.contentResolver.openOutputStream(outputUri)?.use { outStream ->
                 pdfDocument.writeTo(outStream)
-            } ?: return@withContext EngineResult.failure(EngineErrorCode.FILE_WRITE_FAILED, "无法写入目标 PDF")
+            } ?: return@withContext EngineResult.failure(EngineErrorCode.IO_TRANSACTION_COMMIT_FAILED, "无法写入目标 PDF")
 
             pdfDocument.close()
             EngineResult.success(pageNum)
         } catch (e: Exception) {
-            EngineResult.failure(EngineErrorCode.UNEXPECTED, "XLSX 转 PDF 失败: ${e.message}")
+            EngineResult.failure(EngineErrorCode.UNKNOWN_ENGINE_ERROR, "XLSX 转 PDF 失败: ${e.message}")
         }
     }
 
@@ -246,11 +246,11 @@ class RealDocumentConverter(
                     zos.write(docXml.toByteArray(Charsets.UTF_8))
                     zos.closeEntry()
                 }
-            } ?: return@withContext EngineResult.failure(EngineErrorCode.FILE_WRITE_FAILED, "无法写入目标 DOCX")
+            } ?: return@withContext EngineResult.failure(EngineErrorCode.IO_TRANSACTION_COMMIT_FAILED, "无法写入目标 DOCX")
 
             EngineResult.success(Unit)
         } catch (e: Exception) {
-            EngineResult.failure(EngineErrorCode.UNEXPECTED, "生成 DOCX 失败: ${e.message}")
+            EngineResult.failure(EngineErrorCode.UNKNOWN_ENGINE_ERROR, "生成 DOCX 失败: ${e.message}")
         }
     }
 }
