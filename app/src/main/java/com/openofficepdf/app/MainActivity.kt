@@ -6,10 +6,14 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.openofficepdf.app.theme.OpenOfficeTheme
@@ -119,7 +123,7 @@ class MainActivity : ComponentActivity() {
             OpenOfficeTheme {
                 Surface(
                     color = MaterialTheme.colorScheme.background,
-                    modifier = androidx.compose.ui.Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     var currentRoute by rememberSaveable { mutableStateOf("home") }
                     val recentDocs by homeViewModel.recentDocuments.collectAsState()
@@ -129,10 +133,10 @@ class MainActivity : ComponentActivity() {
                         currentRoute = "home"
                     }
 
-                    androidx.compose.foundation.layout.Box(
-                        modifier = androidx.compose.ui.Modifier
+                    Box(
+                        modifier = Modifier
                             .fillMaxSize()
-                            .androidx.compose.foundation.layout.safeDrawingPadding()
+                            .safeDrawingPadding()
                     ) {
                         when (currentRoute) {
                             "settings" -> SettingsScreen(onBack = { currentRoute = "home" })
