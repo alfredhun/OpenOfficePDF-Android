@@ -103,7 +103,8 @@ class ProcessCrashRecoveryCoordinatorTest {
                 operationType = "TYPE_TEXT",
                 operationPayloadJson = "{\"text\":\"crash_rescue\"}",
                 blobPath = null,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
+                documentId = "doc_001"
             )
         )
 

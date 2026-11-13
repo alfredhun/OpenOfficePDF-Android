@@ -160,7 +160,7 @@ class MainActivity : ComponentActivity() {
                                         currentRoute = "ppt"
                                     }
                                     "markdown", "md" -> {
-                                        mdViewModel.loadDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, "")
+                                        mdViewModel.openFromUri(android.net.Uri.parse(doc.uri), doc.displayName)
                                         currentRoute = "markdown"
                                     }
                                     else -> currentRoute = "pdf"

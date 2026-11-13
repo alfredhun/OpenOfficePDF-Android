@@ -128,42 +128,48 @@ class CollaboraOfficeAdapter(
             parsedPptx = parsedPptx
         )
 
-        // 4. 确保主表 DocumentEntity 存在，满足外键约束
-        if (documentDao != null) {
-            try {
-                val existingDoc = documentDao.getDocumentById(documentId.value)
-                if (existingDoc == null) {
-                    val now = System.currentTimeMillis()
-                    val fallbackDoc = com.openofficepdf.core.database.entity.DocumentEntity(
-                        id = documentId.value,
-                        uri = fileUri?.toString() ?: "content://openofficepdf/${documentId.value}",
-                        displayName = fileUri?.lastPathSegment?.substringAfterLast('/') ?: "文档",
-                        mimeType = "application/octet-stream",
-                        format = "OFFICE",
-                        sizeBytes = stagingFile.length(),
-                        createdAt = now,
-                        modifiedAt = now,
-                        lastOpenedAt = now
-                    )
-                    documentDao.insertOrUpdate(fallbackDoc)
-                }
-            } catch (_: Exception) { }
+        // 4 & 5. 原子事务级安全落库：严格按 祖父 (documents) -> 父 (document_sessions) 顺序落库
+        val now = System.currentTimeMillis()
+        val docTitle = fileUri?.lastPathSegment?.substringAfterLast('/') ?: "未命名文档"
+        val detectedFormat = when {
+            parsedXlsx != null || docTitle.endsWith(".xlsx", true) -> "XLSX"
+            parsedPptx != null || docTitle.endsWith(".pptx", true) -> "PPTX"
+            else -> "DOCX"
         }
 
-        // 5. 持久化会话记录到 Room 数据库
         try {
-            val sessionEntity = DocumentSessionEntity(
-                sessionId = sessionId.value,
-                documentId = documentId.value,
-                lastOpenedPage = 0,
-                activeTool = "VIEW",
-                isDirty = false,
-                createdAt = System.currentTimeMillis(),
-                lastActiveAt = System.currentTimeMillis()
+            // 1. 确保祖父表 documents 存在（使用 IGNORE 杜绝外键孤儿记录并避免 REPLACE 触发级联删除）
+            sessionDao.insertDocumentIgnore(
+                com.openofficepdf.core.database.entity.DocumentEntity(
+                    id = documentId.value,
+                    uri = fileUri?.toString() ?: "content://openofficepdf/${documentId.value}",
+                    displayName = docTitle,
+                    mimeType = "application/octet-stream",
+                    format = detectedFormat,
+                    sizeBytes = stagingFile.length(),
+                    createdAt = now,
+                    modifiedAt = now,
+                    lastOpenedAt = now
+                )
             )
-            sessionDao.insertSession(sessionEntity)
-        } catch (_: Exception) {
-            // 避免因数据库约束等偶发异常阻塞前台打开文档
+
+            // 2. 确保父表 document_sessions 存在
+            sessionDao.insertSessionIgnore(
+                DocumentSessionEntity(
+                    sessionId = sessionId.value,
+                    documentId = documentId.value,
+                    lastOpenedPage = 0,
+                    activeTool = "VIEW",
+                    isDirty = false,
+                    createdAt = now,
+                    lastActiveAt = now
+                )
+            )
+        } catch (e: Exception) {
+            return EngineResult.failure(
+                "数据库会话落库失败 [code 787 防护拦截]: ${e.message}",
+                EngineError.DatabaseFailure
+            )
         }
 
         EngineResult.success(

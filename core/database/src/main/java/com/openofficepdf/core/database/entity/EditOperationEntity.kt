@@ -37,8 +37,8 @@ data class EditOperationEntity(
     @ColumnInfo(name = "op_id")
     val opId: String,
     
-    @ColumnInfo(name = "document_id", defaultValue = "doc_default")
-    val documentId: String = "doc_default",
+    @ColumnInfo(name = "document_id")
+    val documentId: String,
     
     @ColumnInfo(name = "session_id")
     val sessionId: String,
@@ -87,7 +87,7 @@ data class EditOperationEntity(
         operationPayloadJson: String,
         blobPath: String? = null,
         timestamp: Long = System.currentTimeMillis(),
-        documentId: String = "doc_default",
+        documentId: String,
         sequenceNumber: Int = 1
     ) : this(
         opId = operationId,

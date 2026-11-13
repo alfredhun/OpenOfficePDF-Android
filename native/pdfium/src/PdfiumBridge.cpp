@@ -33,7 +33,7 @@ struct DocumentSession {
 };
 
 std::mutex g_sessionsMutex;
-std::unordered_map<int64_t, std::unique_ptr<DocumentSession>> g_sessions;
+std::unordered_map<int64_t, std::shared_ptr<DocumentSession>> g_sessions;
 
 // 静态文件访问回调对接 Linux pread64
 // 杜绝将整个几百 MB 的 PDF 读入内存
@@ -81,7 +81,7 @@ int64_t PdfiumBridge::openDocumentWithFd(int fd, int64_t size, const char* passw
         return 0;
     }
 
-    auto session = std::make_unique<DocumentSession>();
+    auto session = std::make_shared<DocumentSession>();
     session->fileAccess = NativeFileAccess{dupFd, size};
 
     FPDF_FILEACCESS access{};
@@ -100,7 +100,7 @@ int64_t PdfiumBridge::openDocumentWithFd(int fd, int64_t size, const char* passw
     int64_t handle = reinterpret_cast<int64_t>(doc);
 
     std::lock_guard<std::mutex> lock(g_sessionsMutex);
-    g_sessions[handle] = std::move(session);
+    g_sessions[handle] = session;
     return handle;
 }
 
@@ -149,16 +149,17 @@ bool PdfiumBridge::renderPageTileToBuffer(
         return false;
     }
 
-    FPDF_DOCUMENT doc = nullptr;
+    std::shared_ptr<DocumentSession> session;
     {
         std::lock_guard<std::mutex> lock(g_sessionsMutex);
         auto it = g_sessions.find(docHandle);
-        if (it == g_sessions.end() || !it->second->doc) {
+        if (it == g_sessions.end() || !it->second || !it->second->doc) {
             return false;
         }
-        doc = it->second->doc;
+        session = it->second;
     }
 
+    FPDF_DOCUMENT doc = session->doc;
     FPDF_PAGE page = FPDF_LoadPage(doc, params.pageIndex);
 
     // 1. 创建基于外部 Android Bitmap 锁存像素缓冲区的 FPDF_BITMAP (BGRA/RGBA)
