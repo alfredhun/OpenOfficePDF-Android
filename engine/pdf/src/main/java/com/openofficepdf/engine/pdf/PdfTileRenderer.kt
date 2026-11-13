@@ -41,7 +41,8 @@ data class RenderedTile(
  */
 class PdfTileRenderer(
     private val bitmapPool: BitmapPool,
-    private val docHandles: ConcurrentHashMap<SessionId, Long> = ConcurrentHashMap()
+    private val docHandles: ConcurrentHashMap<SessionId, Long> = ConcurrentHashMap(),
+    private val nativeRendererBridge: AndroidPdfRendererBridge? = null
 ) : PdfRenderEngine {
 
     companion object {
@@ -64,6 +65,14 @@ class PdfTileRenderer(
         nightMode: Boolean,
         targetBitmap: Bitmap
     ): EngineResult<Unit> = withContext(AppDispatchers.pdfNative) {
+        // 优先尝试真实 AndroidPdfRendererBridge 进行硬件加速真渲染
+        if (nativeRendererBridge != null) {
+            val bridgeResult = nativeRendererBridge.renderPageToBitmap(sessionId, pageIndex, targetBitmap, scale)
+            if (bridgeResult is EngineResult.Success) {
+                return@withContext bridgeResult
+            }
+        }
+
         val handle = docHandles[sessionId]
             ?: return@withContext EngineResult.failure(
                 EngineErrorCode.SESSION_EXPIRED,

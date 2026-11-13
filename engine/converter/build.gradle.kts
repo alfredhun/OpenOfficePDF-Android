@@ -27,6 +27,7 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:storage"))
     implementation(project(":engine:pdf"))
+    implementation(project(":engine:office"))
     implementation(project(":engine:ocr"))
     implementation(project(":engine:markdown"))
     

@@ -45,7 +45,8 @@ class MainActivity : ComponentActivity() {
                                     sessionDao = appContainer.database.sessionAndEditDao(),
                                     storageProvider = appContainer.storageProvider,
                                     tempFileManager = appContainer.tempFileManager,
-                                    transactionalCommitter = appContainer.transactionalCommitter
+                                    transactionalCommitter = appContainer.transactionalCommitter,
+                                    pdfRendererBridge = appContainer.androidPdfRendererBridge
                                 )
                             }
                             PdfViewerScreen(
@@ -89,7 +90,8 @@ class MainActivity : ComponentActivity() {
                                     documentDao = appContainer.database.documentDao(),
                                     storageProvider = appContainer.storageProvider,
                                     tempFileManager = appContainer.tempFileManager,
-                                    transactionalCommitter = appContainer.transactionalCommitter
+                                    transactionalCommitter = appContainer.transactionalCommitter,
+                                    context = this@MainActivity
                                 ).apply {
                                     loadDocument(
                                         docId = com.openofficepdf.core.model.DocumentId("sample_md"),

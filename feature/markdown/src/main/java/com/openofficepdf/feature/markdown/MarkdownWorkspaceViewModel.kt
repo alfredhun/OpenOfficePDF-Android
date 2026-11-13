@@ -1,5 +1,7 @@
 package com.openofficepdf.feature.markdown
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.openofficepdf.core.common.AppDispatchers
@@ -30,6 +32,7 @@ enum class MarkdownDisplayMode {
 
 data class MarkdownUiState(
     val documentId: DocumentId? = null,
+    val sourceUri: Uri? = null,
     val documentTitle: String = "未命名.md",
     val sourceContent: String = "",
     val parsedBlocks: List<MarkdownBlock> = emptyList(),
@@ -49,7 +52,8 @@ class MarkdownWorkspaceViewModel(
     private val documentDao: DocumentDao,
     private val storageProvider: DocumentAccessProvider,
     private val tempFileManager: TemporaryFileManager,
-    private val transactionalCommitter: TransactionalFileCommitter
+    private val transactionalCommitter: TransactionalFileCommitter,
+    private val context: Context? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MarkdownUiState())
@@ -67,6 +71,62 @@ class MarkdownWorkspaceViewModel(
         )
     }
 
+    /**
+     * 通过 SAF Uri 打开真实外部 Markdown 文件
+     */
+    fun openFromUri(uri: Uri, title: String) {
+        viewModelScope.launch {
+            try {
+                val content = withContext(AppDispatchers.io) {
+                    context?.contentResolver?.openInputStream(uri)?.use { stream ->
+                        stream.bufferedReader(Charsets.UTF_8).readText()
+                    } ?: ""
+                }
+                val sanitized = scrollSync.sanitizeMarkdownText(content)
+                val blocks = astParser.parseToBlocks(sanitized)
+                _uiState.value = _uiState.value.copy(
+                    documentId = DocumentId(uri.toString()),
+                    sourceUri = uri,
+                    documentTitle = title,
+                    sourceContent = sanitized,
+                    parsedBlocks = blocks,
+                    isModified = false,
+                    toastMessage = "成功打开 $title"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(toastMessage = "读取文件失败: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 通过 SAF Uri 导出或保存 Markdown 文件
+     */
+    fun exportToUri(targetUri: Uri) {
+        val content = _uiState.value.sourceContent
+        _uiState.value = _uiState.value.copy(isSaving = true)
+
+        viewModelScope.launch {
+            try {
+                withContext(AppDispatchers.io) {
+                    context?.contentResolver?.openOutputStream(targetUri)?.use { out ->
+                        out.write(content.toByteArray(Charsets.UTF_8))
+                    }
+                }
+                _uiState.value = _uiState.value.copy(
+                    isSaving = false,
+                    isModified = false,
+                    toastMessage = "文件已成功保存落盘！"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isSaving = false,
+                    toastMessage = "保存失败: ${e.message}"
+                )
+            }
+        }
+    }
+
     fun onSourceChanged(newText: String) {
         val sanitized = scrollSync.sanitizeMarkdownText(newText)
         val blocks = astParser.parseToBlocks(sanitized)
@@ -78,72 +138,43 @@ class MarkdownWorkspaceViewModel(
     }
 
     fun toggleDisplayMode() {
-        val nextMode = when (_uiState.value.displayMode) {
+        val next = when (_uiState.value.displayMode) {
             MarkdownDisplayMode.SPLIT_DUAL -> MarkdownDisplayMode.PREVIEW_ONLY
             MarkdownDisplayMode.PREVIEW_ONLY -> MarkdownDisplayMode.SOURCE_ONLY
             MarkdownDisplayMode.SOURCE_ONLY -> MarkdownDisplayMode.SPLIT_DUAL
         }
-        _uiState.value = _uiState.value.copy(displayMode = nextMode)
+        _uiState.value = _uiState.value.copy(displayMode = next)
     }
 
     fun toggleNightMode() {
         _uiState.value = _uiState.value.copy(isNightMode = !_uiState.value.isNightMode)
     }
 
-    /**
-     * 编辑器行号滚动更新，触发右侧精准插值同步定位
-     */
     fun onEditorScrolledToLine(line: Int) {
-        val targetIndex = scrollSync.findTargetBlockIndexForSourceLine(
-            targetLine = line,
-            blocks = _uiState.value.parsedBlocks
-        )
+        val targetIdx = scrollSync.calculatePreviewTargetBlockIndex(line, _uiState.value.parsedBlocks)
         _uiState.value = _uiState.value.copy(
             currentLineInEditor = line,
-            previewTargetIndex = targetIndex
+            previewTargetIndex = targetIdx
         )
     }
 
-    /**
-     * 执行三阶段事务安全保存
-     */
     fun saveDocument() {
+        // 保存到数据库缓存
         val state = _uiState.value
         val docId = state.documentId ?: return
-
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
-
-            val stageResult = tempFileManager.createStagingCopy(
-                sessionId = com.openofficepdf.core.model.SessionId(UUID.randomUUID().toString()),
-                prefix = "md_save_"
+            documentDao.insertDocument(
+                DocumentEntity(
+                    id = docId.value,
+                    title = state.documentTitle,
+                    format = DocumentFormat.MD.name,
+                    uri = state.sourceUri?.toString() ?: "memory://${docId.value}",
+                    sizeBytes = state.sourceContent.toByteArray().size.toLong(),
+                    lastModified = System.currentTimeMillis()
+                )
             )
-
-            when (stageResult) {
-                is com.openofficepdf.core.common.EngineResult.Success<File> -> {
-                    val stagingFile = stageResult.data
-                    withContext(AppDispatchers.io) {
-                        stagingFile.writeText(state.sourceContent, Charsets.UTF_8)
-                    }
-
-                    // 事务性安全替换
-                    // 模拟目标文件或 SAF 提交
-                    _uiState.value = _uiState.value.copy(
-                        isSaving = false,
-                        isModified = false,
-                        toastMessage = "文档已安全保存"
-                    )
-                }
-                is com.openofficepdf.core.common.EngineResult.Failure -> {
-                    _uiState.value = _uiState.value.copy(
-                        isSaving = false,
-                        toastMessage = "保存失败: ${stageResult.errorMessage}"
-                    )
-                }
-                else -> {
-                    _uiState.value = _uiState.value.copy(isSaving = false)
-                }
-            }
+            _uiState.value = _uiState.value.copy(isSaving = false, isModified = false, toastMessage = "已保存到工作台记录")
         }
     }
 

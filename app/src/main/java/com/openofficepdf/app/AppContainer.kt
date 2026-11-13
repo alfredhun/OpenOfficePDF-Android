@@ -39,9 +39,10 @@ class AppContainer(context: Context) {
     val transactionalCommitter: TransactionalFileCommitter = TransactionalFileCommitter(context, tempFileManager)
 
     // PDF 引擎层
+    val androidPdfRendererBridge: AndroidPdfRendererBridge = AndroidPdfRendererBridge(context)
     val pdfFontManager: PdfFontManager = PdfFontManager()
     val pdfRedactionService: RedactionService = RedactionService()
-    val pdfTileRenderer: PdfTileRenderer = PdfTileRenderer(bitmapPool)
+    val pdfTileRenderer: PdfTileRenderer = PdfTileRenderer(bitmapPool, androidPdfRendererBridge)
     val pdfEditEngine: PdfEditEngine = PdfEditEngineImpl(pdfFontManager, pdfRedactionService)
 
     // Office 引擎层 (跨进程驱动)
@@ -58,8 +59,16 @@ class AppContainer(context: Context) {
     val mermaidPool: MermaidRenderPool = MermaidRenderPool(context)
 
     // OCR 引擎层
-    val ocrEngine: OcrEngine = OcrEngineImpl(taskDao = database.taskDao())
+    val searchablePdfSynthesizer: SearchablePdfSynthesizer = SearchablePdfSynthesizer(context)
+    val ocrEngine: OcrEngine = OcrEngineImpl(
+        taskDao = database.taskDao(),
+        context = context,
+        searchablePdfSynthesizer = searchablePdfSynthesizer
+    )
 
     // 格式转换引擎层
-    val conversionEngine: ConversionEngine = ConversionEngineImpl(taskDao = database.taskDao())
+    val conversionEngine: ConversionEngine = ConversionEngineImpl(
+        taskDao = database.taskDao(),
+        context = context
+    )
 }

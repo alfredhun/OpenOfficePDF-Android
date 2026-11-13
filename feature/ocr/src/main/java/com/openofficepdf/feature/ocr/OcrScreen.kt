@@ -1,7 +1,9 @@
 package com.openofficepdf.feature.ocr
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,14 +26,53 @@ fun OcrScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var enableTableRecovery by remember { mutableStateOf(false) }
+
+    // SAF 选择输入图片或 PDF
+    val openSourceLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            val name = it.lastPathSegment?.substringAfterLast('/') ?: "文档"
+            viewModel.selectDocument(it, name)
+        }
+    }
+
+    // SAF 保存双层 PDF
+    val createPdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { outputUri: Uri? ->
+        outputUri?.let {
+            viewModel.synthesizeSearchablePdf(it)
+        }
+    }
+
+    LaunchedEffect(uiState.toastMessage) {
+        uiState.toastMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearToast()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("离线 OCR 识别中心", fontSize = 18.sp) },
+                title = { 
+                    Column {
+                        Text("离线 OCR 识别中心", fontSize = 17.sp)
+                        Text(uiState.documentTitle, fontSize = 11.sp, color = Color.Gray, maxLines = 1)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { openSourceLauncher.launch(arrayOf("image/*", "application/pdf")) }) {
+                        Icon(Icons.Default.FolderOpen, contentDescription = "选择待识别文件")
                     }
                 }
             )
@@ -86,6 +127,34 @@ fun OcrScreen(
                         fontSize = 13.sp,
                         color = Color.Gray
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = enableTableRecovery,
+                                onCheckedChange = { enableTableRecovery = it }
+                            )
+                            Text("启用版面与表格分析", fontSize = 13.sp)
+                        }
+
+                        if (uiState.isRunning) {
+                            OutlinedButton(onClick = { viewModel.pauseOrCancel() }) {
+                                Text("暂停")
+                            }
+                        } else {
+                            Button(
+                                enabled = uiState.sourceUri != null,
+                                onClick = { viewModel.startRecognition(enableTableRecovery) }
+                            ) {
+                                Text("开始识别")
+                            }
+                        }
+                    }
                 }
             }
 
@@ -96,6 +165,23 @@ fun OcrScreen(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (uiState.pageResults.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (uiState.sourceUri == null) "请点击右上角打开图片或 PDF 文档" else "点击上方“开始识别”提取图文",
+                                color = Color.Gray,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+
                 items(uiState.pageResults) { page ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -123,25 +209,25 @@ fun OcrScreen(
                 }
             }
 
-            // 底部操作区
+            // 底部操作区：导出与双层 PDF 合成
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
                     modifier = Modifier.weight(1f),
-                    enabled = uiState.completedPages > 0,
-                    onClick = { /* 导出双层可搜索 PDF */ }
+                    enabled = uiState.completedPages > 0 && !uiState.isSynthesizing,
+                    onClick = { createPdfLauncher.launch("Searchable_${System.currentTimeMillis()}.pdf") }
                 ) {
                     Icon(Icons.Default.PictureAsPdf, contentDescription = null)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("合成双层 PDF")
+                    Text(if (uiState.isSynthesizing) "正在合成..." else "合成双层 PDF")
                 }
 
                 OutlinedButton(
                     modifier = Modifier.weight(1f),
                     enabled = uiState.completedPages > 0,
-                    onClick = { /* 导出 Word / Excel */ }
+                    onClick = { /* 导出 Office */ }
                 ) {
                     Icon(Icons.Default.Description, contentDescription = null)
                     Spacer(modifier = Modifier.width(6.dp))

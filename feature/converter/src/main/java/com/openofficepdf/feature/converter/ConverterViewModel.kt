@@ -16,10 +16,10 @@ import java.util.UUID
 data class ConverterUiState(
     val selectedSourceUri: Uri? = null,
     val sourceFileName: String = "",
-    val sourceFormat: DocumentFormat = DocumentFormat.PDF,
-    val targetFormat: DocumentFormat = DocumentFormat.DOCX,
+    val sourceFormat: DocumentFormat = DocumentFormat.DOCX,
+    val targetFormat: DocumentFormat = DocumentFormat.PDF,
     val isScanned: Boolean = false,
-    val qualityAssessment: QualityAssessment = ConversionQualityAdvisor.assessConversion(DocumentFormat.PDF, DocumentFormat.DOCX),
+    val qualityAssessment: QualityAssessment = ConversionQualityAdvisor.assessConversion(DocumentFormat.DOCX, DocumentFormat.PDF),
     val isConverting: Boolean = false,
     val currentTaskId: String? = null,
     val currentProgress: Float = 0f,
@@ -50,7 +50,10 @@ class ConverterViewModel(
             sourceFormat = format,
             targetFormat = target,
             isScanned = isScanned,
-            qualityAssessment = assessment
+            qualityAssessment = assessment,
+            currentProgress = 0f,
+            currentStageText = "",
+            toastMessage = "已选中: $fileName"
         )
     }
 
@@ -67,11 +70,10 @@ class ConverterViewModel(
         )
     }
 
-    fun startConversion() {
+    fun startConversionToUri(outputUri: Uri) {
         val state = _uiState.value
         val sourceUri = state.selectedSourceUri ?: return
         val taskId = UUID.randomUUID().toString()
-        val outputUri = Uri.parse("file:///dummy_output_${System.currentTimeMillis()}.${state.targetFormat.name.lowercase()}")
 
         val options = ConversionOptions(
             tier = state.qualityAssessment.tier,
@@ -81,8 +83,9 @@ class ConverterViewModel(
         _uiState.value = _uiState.value.copy(
             isConverting = true,
             currentTaskId = taskId,
-            currentProgress = 0f,
-            currentStageText = "任务已提交，准备开始转换..."
+            currentProgress = 0.05f,
+            currentStageText = "初始化本地转换环境...",
+            errorMessage = null
         )
 
         conversionJob = viewModelScope.launch {
@@ -102,26 +105,35 @@ class ConverterViewModel(
                         totalPages = progress.totalPages
                     )
                 }
+
                 _uiState.value = _uiState.value.copy(
                     isConverting = false,
-                    toastMessage = "转换已完成！文件已存入本地工作目录"
+                    currentProgress = 1.0f,
+                    toastMessage = "转换成功！文件已保存。"
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isConverting = false,
-                    errorMessage = "转换中断或取消: ${e.message}"
+                    errorMessage = e.message,
+                    toastMessage = "转换异常中断"
                 )
             }
         }
     }
 
     fun cancelConversion() {
-        val taskId = _uiState.value.currentTaskId ?: return
-        viewModelScope.launch {
-            conversionEngine.cancelConversion(taskId)
-            conversionJob?.cancel()
-            _uiState.value = _uiState.value.copy(isConverting = false, toastMessage = "转换已暂停/取消")
+        val taskId = _uiState.value.currentTaskId
+        if (taskId != null) {
+            viewModelScope.launch {
+                conversionEngine.cancelConversion(taskId)
+            }
         }
+        conversionJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            isConverting = false,
+            currentStageText = "任务已暂停/取消",
+            toastMessage = "已取消转换"
+        )
     }
 
     fun clearToast() {

@@ -1,5 +1,8 @@
 package com.openofficepdf.feature.converter
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -19,7 +22,7 @@ import com.openofficepdf.engine.converter.ConversionTier
 
 /**
  * 格式转换中心交互界面 (任务书 2.6 节)
- * - 源格式与目标格式选择
+ * - 源格式与目标格式选择 (集成 SAF 文件选择器与目标文件保存)
  * - 转换质量分级与诚实预警卡片 (绝不许诺虚假无损)
  * - 异步任务流式进度与逐页断点恢复
  */
@@ -31,6 +34,32 @@ fun ConverterScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // SAF 选择待转换的源文件
+    val openSourceFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            val name = it.lastPathSegment?.substringAfterLast('/') ?: "文档"
+            val format = when {
+                name.endsWith(".docx", ignoreCase = true) -> DocumentFormat.DOCX
+                name.endsWith(".xlsx", ignoreCase = true) -> DocumentFormat.XLSX
+                name.endsWith(".pptx", ignoreCase = true) -> DocumentFormat.PPTX
+                name.endsWith(".pdf", ignoreCase = true) -> DocumentFormat.PDF
+                else -> DocumentFormat.PDF
+            }
+            viewModel.selectSourceDocument(it, name, format)
+        }
+    }
+
+    // SAF 保存转换后的目标文件
+    val saveTargetFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { outputUri: Uri? ->
+        outputUri?.let {
+            viewModel.startConversionToUri(it)
+        }
+    }
 
     LaunchedEffect(uiState.toastMessage) {
         uiState.toastMessage?.let {
@@ -47,6 +76,18 @@ fun ConverterScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        openSourceFileLauncher.launch(arrayOf(
+                            "application/pdf",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        ))
+                    }) {
+                        Icon(Icons.Default.FolderOpen, contentDescription = "选择本地源文件")
                     }
                 }
             )
@@ -77,17 +118,17 @@ fun ConverterScreen(
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                text = "源格式: ${uiState.sourceFormat.name}",
+                                text = if (uiState.sourceFileName.isNotBlank()) "源文件: ${uiState.sourceFileName} (${uiState.sourceFormat.name})" else "未选择文件 (点击右上角打开)",
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                fontWeight = FontWeight.SemiBold
+                                style = MaterialTheme.typography.bodyMedium
                             )
                         }
 
                         Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.Gray)
 
-                        // 目标格式选择切换
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(DocumentFormat.DOCX, DocumentFormat.XLSX, DocumentFormat.PDF).forEach { fmt ->
+                        // 目标格式选择下拉或切换
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            listOf(DocumentFormat.PDF, DocumentFormat.DOCX, DocumentFormat.XLSX).forEach { fmt ->
                                 if (fmt != uiState.sourceFormat) {
                                     FilterChip(
                                         selected = uiState.targetFormat == fmt,
@@ -101,73 +142,60 @@ fun ConverterScreen(
                 }
             }
 
-            // 转换质量分级与诚实预警卡片 (任务书强制规范)
-            val assessment = uiState.qualityAssessment
-            val tierContainerColor = when (assessment.tier) {
-                ConversionTier.LOSSLESS -> MaterialTheme.colorScheme.primaryContainer
-                ConversionTier.LAYOUT_REBUILD -> MaterialTheme.colorScheme.tertiaryContainer
-                ConversionTier.OCR_REBUILD -> MaterialTheme.colorScheme.errorContainer
-            }
-            val tierContentColor = when (assessment.tier) {
-                ConversionTier.LOSSLESS -> MaterialTheme.colorScheme.onPrimaryContainer
-                ConversionTier.LAYOUT_REBUILD -> MaterialTheme.colorScheme.onTertiaryContainer
-                ConversionTier.OCR_REBUILD -> MaterialTheme.colorScheme.onErrorContainer
-            }
-
+            // 任务书强制要求的诚实预警卡片
             Card(
-                colors = CardDefaults.cardColors(containerColor = tierContainerColor),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = when (uiState.qualityAssessment.tier) {
+                        ConversionTier.LOSSLESS -> MaterialTheme.colorScheme.primaryContainer
+                        ConversionTier.LAYOUT_REBUILD -> MaterialTheme.colorScheme.tertiaryContainer
+                        ConversionTier.OCR_REBUILD -> MaterialTheme.colorScheme.errorContainer
+                    }
+                )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = if (assessment.tier == ConversionTier.LOSSLESS) Icons.Default.Verified else Icons.Default.Info,
-                                contentDescription = null,
-                                tint = tierContentColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = assessment.titleWarning,
-                                fontWeight = FontWeight.Bold,
-                                color = tierContentColor,
-                                fontSize = 15.sp
-                            )
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = when (uiState.qualityAssessment.tier) {
+                                ConversionTier.LOSSLESS -> Icons.Default.CheckCircle
+                                ConversionTier.LAYOUT_REBUILD -> Icons.Default.Info
+                                ConversionTier.OCR_REBUILD -> Icons.Default.Warning
+                            },
+                            contentDescription = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "保真度 ~${assessment.fidelityPercentageEstimate}%",
+                            text = "预期质量分级: ${uiState.qualityAssessment.tier.name}",
                             fontWeight = FontWeight.Bold,
-                            color = tierContentColor,
-                            fontSize = 13.sp
+                            fontSize = 15.sp
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = assessment.detailedNotice,
-                        fontSize = 13.sp,
-                        lineHeight = 19.sp,
-                        color = tierContentColor
+                        text = uiState.qualityAssessment.riskDescription,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "建议对策: ${uiState.qualityAssessment.suggestedAction}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
 
-            // 任务进度与流式执行
-            if (uiState.isConverting || uiState.completedPages > 0) {
+            // 转换进度与状态指示卡片
+            if (uiState.isConverting || uiState.currentProgress > 0f) {
                 ElevatedCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = if (uiState.isConverting) "正在转换处理..." else "转换已就绪",
-                            fontWeight = FontWeight.SemiBold,
+                            text = if (uiState.isConverting) "正在执行本地转换..." else "转换已完成",
+                            fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -178,8 +206,8 @@ fun ConverterScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = uiState.currentStageText,
-                            fontSize = 12.sp,
-                            color = Color.Gray
+                            fontSize = 13.sp,
+                            color = Color.DarkGray
                         )
                     }
                 }
@@ -187,7 +215,7 @@ fun ConverterScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 底部操作按钮
+            // 底部操作区
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -202,11 +230,16 @@ fun ConverterScreen(
                 } else {
                     Button(
                         modifier = Modifier.fillMaxWidth(),
-                        onClick = { viewModel.startConversion() }
+                        enabled = uiState.selectedSourceUri != null,
+                        onClick = {
+                            val ext = uiState.targetFormat.name.lowercase()
+                            val baseName = uiState.sourceFileName.substringBeforeLast('.')
+                            saveTargetFileLauncher.launch("${baseName}_converted.$ext")
+                        }
                     ) {
                         Icon(Icons.Default.Transform, contentDescription = null)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("开始离线转换 (${uiState.sourceFormat.name} -> ${uiState.targetFormat.name})")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("选择目标位置并开始转换")
                     }
                 }
             }

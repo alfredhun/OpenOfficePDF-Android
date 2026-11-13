@@ -1,17 +1,19 @@
 package com.openofficepdf.feature.pdf
 
+import android.graphics.Bitmap
 import android.graphics.RectF
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.openofficepdf.core.common.EngineResult
 import com.openofficepdf.core.database.dao.SessionAndEditDao
-import com.openofficepdf.core.database.entity.EditOperationEntity
 import com.openofficepdf.core.model.SessionId
 import com.openofficepdf.core.model.pdf.PdfObjectModel
 import com.openofficepdf.core.model.pdf.PdfTextObject
 import com.openofficepdf.core.storage.DocumentAccessProvider
 import com.openofficepdf.core.storage.TemporaryFileManager
 import com.openofficepdf.core.storage.TransactionalFileCommitter
+import com.openofficepdf.engine.pdf.AndroidPdfRendererBridge
 import com.openofficepdf.engine.pdf.PdfEditEngine
 import com.openofficepdf.engine.pdf.PdfTileRenderer
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,12 +48,14 @@ data class InPlaceEditDraft(
 
 data class PdfViewerUiState(
     val sessionId: SessionId? = null,
+    val documentUri: Uri? = null,
     val documentTitle: String = "示例文件.pdf",
     val pageCount: Int = 1,
     val currentPageIndex: Int = 0,
     val zoomScale: Float = 1.0f,
     val isNightMode: Boolean = false,
     val interactionMode: PdfInteractionMode = PdfInteractionMode.VIEW,
+    val renderedBitmap: Bitmap? = null,
     val activeOverlayDraft: OverlayEditDraft? = null,
     val activeInPlaceDraft: InPlaceEditDraft? = null,
     val selectedRedactRegions: List<RectF> = emptyList(),
@@ -68,7 +72,8 @@ class PdfViewerViewModel(
     private val sessionDao: SessionAndEditDao,
     private val storageProvider: DocumentAccessProvider,
     private val tempFileManager: TemporaryFileManager,
-    private val transactionalCommitter: TransactionalFileCommitter
+    private val transactionalCommitter: TransactionalFileCommitter,
+    private val pdfRendererBridge: AndroidPdfRendererBridge? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PdfViewerUiState())
@@ -94,6 +99,75 @@ class PdfViewerViewModel(
             capability = com.openofficepdf.core.model.pdf.EditCapability.IN_PLACE_TEXT
         )
         _uiState.value = _uiState.value.copy(pageObjects = listOf(sampleObj))
+    }
+
+    /**
+     * 打开真实外部 PDF 文档 (通过 SAF Uri)
+     */
+    fun openPdfDocument(uri: Uri, title: String) {
+        val newSessionId = SessionId("pdf_session_" + UUID.randomUUID().toString().take(8))
+        viewModelScope.launch {
+            if (pdfRendererBridge != null) {
+                val openResult = pdfRendererBridge.openDocument(newSessionId, uri)
+                if (openResult is EngineResult.Success) {
+                    val count = openResult.data
+                    _uiState.value = _uiState.value.copy(
+                        sessionId = newSessionId,
+                        documentUri = uri,
+                        documentTitle = title,
+                        pageCount = count,
+                        currentPageIndex = 0,
+                        toastMessage = "成功打开文档，共 $count 页"
+                    )
+                    renderCurrentPage(newSessionId, 0)
+                } else if (openResult is EngineResult.Failure) {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = openResult.errorMessage,
+                        documentTitle = title
+                    )
+                }
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    sessionId = newSessionId,
+                    documentUri = uri,
+                    documentTitle = title,
+                    toastMessage = "已加载 $title"
+                )
+            }
+        }
+    }
+
+    fun renderCurrentPage(sessionId: SessionId, pageIndex: Int) {
+        val bridge = pdfRendererBridge ?: return
+        viewModelScope.launch {
+            val size = bridge.getPageSize(sessionId, pageIndex) ?: (595f to 842f)
+            val w = size.first.toInt().coerceAtLeast(100)
+            val h = size.second.toInt().coerceAtLeast(100)
+            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val renderRes = bridge.renderPageToBitmap(sessionId, pageIndex, bitmap)
+            if (renderRes is EngineResult.Success) {
+                _uiState.value = _uiState.value.copy(
+                    renderedBitmap = bitmap,
+                    currentPageIndex = pageIndex
+                )
+            }
+        }
+    }
+
+    fun nextPage() {
+        val s = _uiState.value
+        val sid = s.sessionId ?: return
+        if (s.currentPageIndex + 1 < s.pageCount) {
+            renderCurrentPage(sid, s.currentPageIndex + 1)
+        }
+    }
+
+    fun prevPage() {
+        val s = _uiState.value
+        val sid = s.sessionId ?: return
+        if (s.currentPageIndex > 0) {
+            renderCurrentPage(sid, s.currentPageIndex - 1)
+        }
     }
 
     fun switchMode(mode: PdfInteractionMode) {
@@ -229,7 +303,6 @@ class PdfViewerViewModel(
             when (result) {
                 is EngineResult.Success -> {
                     val outcome = result.data
-                    // 重新获取已清空的页面对象列表
                     val objectsResult = editEngine.getPageObjects(sessionId, pageIndex)
                     val newObjs = if (objectsResult is EngineResult.Success) objectsResult.data else emptyList()
 
@@ -289,5 +362,13 @@ class PdfViewerViewModel(
 
     fun clearToast() {
         _uiState.value = _uiState.value.copy(toastMessage = null)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        val sid = _uiState.value.sessionId
+        if (sid != null) {
+            pdfRendererBridge?.closeDocument(sid)
+        }
     }
 }

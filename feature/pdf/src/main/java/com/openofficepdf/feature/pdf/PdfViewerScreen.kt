@@ -1,6 +1,9 @@
 package com.openofficepdf.feature.pdf
 
 import android.graphics.RectF
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -16,8 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openofficepdf.core.model.pdf.PdfTextObject
@@ -25,6 +31,7 @@ import com.openofficepdf.engine.pdf.NormalizedCoordinatesTransformer
 
 /**
  * PDF 交互阅读器与三级编辑画板 (Jetpack Compose 原生构建)
+ * - 真实 PDF 渲染：支持打开手机本地任意 PDF 并通过 AndroidPdfRenderer 光栅化位图呈现
  * - 一级策略：覆盖式编辑 (带未清除红线预警)
  * - 二级策略：内容流对象级原位编辑 (点选文字对象 -> 原位修改 -> 自动字体回退)
  * - 真 Redaction 脱敏：物理移除相交文本流与涂黑位图
@@ -39,6 +46,16 @@ fun PdfViewerScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showOverlayDraftDialog by remember { mutableStateOf(false) }
 
+    // SAF 打开本地 PDF 文件
+    val openPdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            val fileName = it.lastPathSegment?.substringAfterLast('/') ?: "文档.pdf"
+            viewModel.openPdfDocument(it, fileName)
+        }
+    }
+
     LaunchedEffect(uiState.toastMessage) {
         uiState.toastMessage?.let {
             snackbarHostState.showSnackbar(it)
@@ -50,13 +67,25 @@ fun PdfViewerScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(uiState.documentTitle, fontSize = 17.sp) },
+                title = { 
+                    Column {
+                        Text(uiState.documentTitle, fontSize = 16.sp, maxLines = 1)
+                        if (uiState.pageCount > 1) {
+                            Text("第 ${uiState.currentPageIndex + 1} / ${uiState.pageCount} 页", fontSize = 11.sp, color = Color.Gray)
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
+                    // 打开本地 PDF
+                    IconButton(onClick = { openPdfLauncher.launch(arrayOf("application/pdf")) }) {
+                        Icon(Icons.Default.FolderOpen, contentDescription = "打开本地PDF")
+                    }
+
                     IconButton(onClick = { viewModel.toggleNightMode() }) {
                         Icon(
                             imageVector = if (uiState.isNightMode) Icons.Default.Brightness7 else Icons.Default.Brightness4,
@@ -103,64 +132,91 @@ fun PdfViewerScreen(
             )
         },
         bottomBar = {
-            when (uiState.interactionMode) {
-                PdfInteractionMode.OVERLAY_EDIT -> {
-                    Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+            Column {
+                // 翻页控制栏
+                if (uiState.pageCount > 1) {
+                    Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("拖拽框选需要覆盖的矩形区域", style = MaterialTheme.typography.bodySmall)
-                            Button(
-                                enabled = uiState.activeOverlayDraft?.targetRegionPt?.isEmpty == false,
-                                onClick = { showOverlayDraftDialog = true }
+                            TextButton(
+                                enabled = uiState.currentPageIndex > 0,
+                                onClick = { viewModel.prevPage() }
                             ) {
-                                Text("输入覆盖文本")
+                                Text("上一页")
                             }
-                        }
-                    }
-                }
-                PdfInteractionMode.IN_PLACE_EDIT -> {
-                    Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("点击页面文字直接修改 (支持字体回退)", style = MaterialTheme.typography.bodySmall)
-                            OutlinedButton(onClick = { viewModel.switchMode(PdfInteractionMode.VIEW) }) {
-                                Text("完成")
-                            }
-                        }
-                    }
-                }
-                PdfInteractionMode.TRUE_REDACTION -> {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "已标记 ${uiState.selectedRedactRegions.size} 处脱敏区域",
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Button(
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                enabled = uiState.selectedRedactRegions.isNotEmpty(),
-                                onClick = { viewModel.commitTrueRedaction() }
+                            Text("第 ${uiState.currentPageIndex + 1} 页 / 共 ${uiState.pageCount} 页", fontSize = 13.sp)
+                            TextButton(
+                                enabled = uiState.currentPageIndex + 1 < uiState.pageCount,
+                                onClick = { viewModel.nextPage() }
                             ) {
-                                Text("物理彻底擦除")
+                                Text("下一页")
                             }
                         }
                     }
                 }
-                else -> {}
+
+                when (uiState.interactionMode) {
+                    PdfInteractionMode.OVERLAY_EDIT -> {
+                        Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("拖拽框选需要覆盖的矩形区域", style = MaterialTheme.typography.bodySmall)
+                                Button(
+                                    enabled = uiState.activeOverlayDraft?.targetRegionPt?.isEmpty == false,
+                                    onClick = { showOverlayDraftDialog = true }
+                                ) {
+                                    Text("输入覆盖文本")
+                                }
+                            }
+                        }
+                    }
+                    PdfInteractionMode.IN_PLACE_EDIT -> {
+                        Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("点击页面文字直接修改 (支持字体回退)", style = MaterialTheme.typography.bodySmall)
+                                OutlinedButton(onClick = { viewModel.switchMode(PdfInteractionMode.VIEW) }) {
+                                    Text("完成")
+                                }
+                            }
+                        }
+                    }
+                    PdfInteractionMode.TRUE_REDACTION -> {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "已标记 ${uiState.selectedRedactRegions.size} 处脱敏区域",
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Button(
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    enabled = uiState.selectedRedactRegions.isNotEmpty(),
+                                    onClick = { viewModel.commitTrueRedaction() }
+                                ) {
+                                    Text("物理彻底擦除")
+                                }
+                            }
+                        }
+                    }
+                    else -> {}
+                }
             }
         }
     ) { innerPadding ->
@@ -279,7 +335,6 @@ fun PdfInteractiveCanvas(
                     }
                 } else if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) {
                     detectTapGestures { tapOffset ->
-                        // 点击命中测试 (Hit-testing)
                         for (obj in uiState.pageObjects) {
                             val screenRect = NormalizedCoordinatesTransformer.normalizedPtToScreen(
                                 boundsPt = obj.boundsPt,
@@ -331,19 +386,29 @@ fun PdfInteractiveCanvas(
             }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val pageWidthPx = 595.276f * scale
-            val pageHeightPx = 841.89f * scale
+            val bitmap = uiState.renderedBitmap
+            val pageWidthPx = if (bitmap != null) bitmap.width.toFloat() * scale else 595.276f * scale
+            val pageHeightPx = if (bitmap != null) bitmap.height.toFloat() * scale else 841.89f * scale
             val pageLeft = offset.x
             val pageTop = offset.y
 
-            // 绘制页面白底
-            drawRect(
-                color = if (uiState.isNightMode) Color(0xFF1E1E1E) else Color.White,
-                topLeft = Offset(pageLeft, pageTop),
-                size = Size(pageWidthPx, pageHeightPx)
-            )
+            if (bitmap != null && !bitmap.isRecycled) {
+                // 绘制真实渲染得到的 PDF 页面位图
+                drawImage(
+                    image = bitmap.asImageBitmap(),
+                    dstOffset = IntOffset(pageLeft.toInt(), pageTop.toInt()),
+                    dstSize = IntSize(pageWidthPx.toInt(), pageHeightPx.toInt())
+                )
+            } else {
+                // 绘制页面白底
+                drawRect(
+                    color = if (uiState.isNightMode) Color(0xFF1E1E1E) else Color.White,
+                    topLeft = Offset(pageLeft, pageTop),
+                    size = Size(pageWidthPx, pageHeightPx)
+                )
+            }
 
-            // 绘制页面原生文字对象高亮框 (原位编辑模式下可点击)
+            // 绘制页面文字对象高亮框
             for (obj in uiState.pageObjects) {
                 val screenRect = NormalizedCoordinatesTransformer.normalizedPtToScreen(
                     boundsPt = obj.boundsPt,
@@ -363,7 +428,7 @@ fun PdfInteractiveCanvas(
                 )
             }
 
-            // 绘制已标记的真 Redaction 脱敏区域 (物理黑框脱敏标示)
+            // 绘制已标记的真 Redaction 脱敏区域
             for (reg in uiState.selectedRedactRegions) {
                 val sRect = NormalizedCoordinatesTransformer.normalizedPtToScreen(
                     boundsPt = reg,

@@ -1,5 +1,8 @@
 package com.openofficepdf.feature.markdown
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -23,11 +26,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openofficepdf.core.model.DocumentId
 import com.openofficepdf.engine.markdown.*
 import kotlinx.coroutines.launch
 
 /**
  * Markdown 交互工作台屏幕 (任务书 2.4 节)
+ * - SAF 打开与保存真实本地 .md 文档
  * - 双栏精准同步对照 / 单栏全屏切换
  * - 原生排版阅读器 (非整个嵌 WebView，保障 60fps 原生流畅滚动)
  * - 代码高亮块、数学公式、图表渲染卡片
@@ -40,6 +45,25 @@ fun MarkdownWorkspaceScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // SAF 打开本地 .md 文件
+    val openMdLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            val title = it.lastPathSegment?.substringAfterLast('/') ?: "文档.md"
+            viewModel.openFromUri(it, title)
+        }
+    }
+
+    // SAF 另存为导出 .md 文件
+    val saveMdLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/markdown")
+    ) { uri: Uri? ->
+        uri?.let {
+            viewModel.exportToUri(it)
+        }
+    }
 
     LaunchedEffect(uiState.toastMessage) {
         uiState.toastMessage?.let {
@@ -54,7 +78,7 @@ fun MarkdownWorkspaceScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(uiState.documentTitle, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(uiState.documentTitle, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         if (uiState.isModified) {
                             Text("已修改(未保存)", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
                         }
@@ -66,6 +90,9 @@ fun MarkdownWorkspaceScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { openMdLauncher.launch(arrayOf("text/markdown", "text/plain", "*/*")) }) {
+                        Icon(Icons.Default.FolderOpen, contentDescription = "打开本地MD文件")
+                    }
                     IconButton(onClick = { viewModel.toggleNightMode() }) {
                         Icon(
                             imageVector = if (uiState.isNightMode) Icons.Default.Brightness7 else Icons.Default.Brightness4,
@@ -84,16 +111,18 @@ fun MarkdownWorkspaceScreen(
                     }
                     IconButton(
                         enabled = !uiState.isSaving,
-                        onClick = { viewModel.saveDocument() }
+                        onClick = {
+                            val targetName = uiState.documentTitle.ifBlank { "未命名.md" }
+                            saveMdLauncher.launch(targetName)
+                        }
                     ) {
-                        Icon(Icons.Default.Save, contentDescription = "事务安全保存")
+                        Icon(Icons.Default.Save, contentDescription = "保存与导出")
                     }
                 }
             )
         }
     ) { innerPadding ->
         val bgColor = if (uiState.isNightMode) Color(0xFF141414) else Color(0xFFFAFAFA)
-        val textColor = if (uiState.isNightMode) Color(0xFFE0E0E0) else Color(0xFF212121)
 
         Box(
             modifier = Modifier
@@ -298,7 +327,6 @@ fun MarkdownBlockRenderer(
                         Icon(Icons.Default.AutoGraph, contentDescription = null, modifier = Modifier.size(16.dp))
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    // 单实例 Mermaid 渲染池呈现卡片
                     Text(
                         text = block.sourceCode,
                         fontFamily = FontFamily.Monospace,
@@ -326,7 +354,6 @@ fun MarkdownBlockRenderer(
             }
         }
         is MarkdownBlock.Table -> {
-            // 原生轻量表格渲染
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
