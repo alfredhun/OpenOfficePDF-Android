@@ -445,8 +445,11 @@ fun MarkdownBlockRenderer(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         for (cell in row) {
+                            val cellSpan = remember(cell, isNightMode) {
+                                MarkdownInlineParser.parseInlineSpans(cell, isNightMode)
+                            }
                             Text(
-                                text = cell,
+                                text = cellSpan,
                                 fontSize = (13 * zoomScale).coerceAtLeast(9f).sp,
                                 fontWeight = if (idx == 0) FontWeight.Bold else FontWeight.Normal,
                                 color = textColor,
