@@ -91,7 +91,7 @@ int64_t PdfiumBridge::openDocumentWithFd(int fd, int64_t size, const char* passw
 
     FPDF_DOCUMENT doc = FPDF_LoadCustomDocument(&access, password);
     if (!doc) {
-        LOGE("FPDF_LoadCustomDocument failed, error code: %lu", FPDF_GetLastError());
+        LOGE("FPDF_LoadCustomDocument failed");
         // 析构函数会自动 close(dupFd)，严禁强转返回非法的指针！
         return 0;
     }
