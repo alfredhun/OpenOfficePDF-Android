@@ -95,43 +95,61 @@ fun PdfViewerScreen(
             )
         },
         bottomBar = {
-            Column {
-                // 模式切换工具栏
-                Surface(tonalElevation = 6.dp, modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+            ) {
+                // 悬浮圆角胶囊模式切换工具栏
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 6.dp,
+                        shadowElevation = 8.dp,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.VIEW) }) {
-                            Icon(
-                                Icons.Default.PanTool,
-                                contentDescription = "浏览模式",
-                                tint = if (uiState.interactionMode == PdfInteractionMode.VIEW) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                            )
-                        }
-                        IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.IN_PLACE_EDIT) }) {
-                            Icon(
-                                Icons.Default.Edit,
-                                contentDescription = "原位编辑",
-                                tint = if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                            )
-                        }
-                        IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.OVERLAY_EDIT) }) {
-                            Icon(
-                                Icons.Default.Layers,
-                                contentDescription = "覆盖编辑",
-                                tint = if (uiState.interactionMode == PdfInteractionMode.OVERLAY_EDIT) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                            )
-                        }
-                        IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.TRUE_REDACTION) }) {
-                            Icon(
-                                Icons.Default.Security,
-                                contentDescription = "真脱敏抹除",
-                                tint = if (uiState.interactionMode == PdfInteractionMode.TRUE_REDACTION) MaterialTheme.colorScheme.error else LocalContentColor.current
-                            )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.VIEW) }) {
+                                Icon(
+                                    Icons.Default.PanTool,
+                                    contentDescription = "浏览模式",
+                                    tint = if (uiState.interactionMode == PdfInteractionMode.VIEW) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                                )
+                            }
+                            IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.IN_PLACE_EDIT) }) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "原位编辑",
+                                    tint = if (uiState.interactionMode == PdfInteractionMode.IN_PLACE_EDIT) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                                )
+                            }
+                            IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.OVERLAY_EDIT) }) {
+                                Icon(
+                                    Icons.Default.Layers,
+                                    contentDescription = "覆盖编辑",
+                                    tint = if (uiState.interactionMode == PdfInteractionMode.OVERLAY_EDIT) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                                )
+                            }
+                            IconButton(onClick = { viewModel.switchMode(PdfInteractionMode.TRUE_REDACTION) }) {
+                                Icon(
+                                    Icons.Default.Security,
+                                    contentDescription = "真脱敏抹除",
+                                    tint = if (uiState.interactionMode == PdfInteractionMode.TRUE_REDACTION) MaterialTheme.colorScheme.error else LocalContentColor.current
+                                )
+                            }
                         }
                     }
                 }

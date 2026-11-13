@@ -1,0 +1,45 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- 背层卡片：Excel 翡翠绿意象 (#10B981) -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M38,30 h38 c3.31,0 6,2.69 6,6 v42 c0,3.31 -2.69,6 -6,6 h-38 c-3.31,0 -6,-2.69 -6,-6 v-42 c0,-3.31 2.69,-6 6,-6 z" />
+
+    <!-- 中层卡片：Word 晴空蓝意象 (#38BDF8) -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M33,26 h38 c3.31,0 6,2.69 6,6 v42 c0,3.31 -2.69,6 -6,6 h-38 c-3.31,0 -6,-2.69 -6,-6 v-42 c0,-3.31 2.69,-6 6,-6 z" />
+
+    <!-- 前景主卡片：纯白主体，带 PDF 珊瑚红侧角 (#F43F5E) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,22 h32 l14,14 v38 c0,3.31 -2.69,6 -6,6 h-40 c-3.31,0 -6,-2.69 -6,-6 v-46 c0,-3.31 2.69,-6 6,-6 z" />
+    
+    <!-- 主卡片折角高光/PDF 珊瑚红角标 -->
+    <path
+        android:fillColor="#F43F5E"
+        android:pathData="M60,22 v10 c0,2.21 1.79,4 4,4 h10 z" />
+
+    <!-- 极简文档横线与编辑光标符号 (深石板蓝 #1E293B) -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M35,42 h20 c1.1,0 2,-0.9 2,-2 s-0.9,-2 -2,-2 h-20 c-1.1,0 -2,0.9 -2,2 s0.9,2 2,2 z" />
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M35,50 h28 c1.1,0 2,-0.9 2,-2 s-0.9,-2 -2,-2 h-28 c-1.1,0 -2,0.9 -2,2 s0.9,2 2,2 z" />
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M35,58 h16 c1.1,0 2,-0.9 2,-2 s-0.9,-2 -2,-2 h-16 c-1.1,0 -2,0.9 -2,2 s0.9,2 2,2 z" />
+
+    <!-- 离线盾牌安全符号暗示 (右下角金色/克莱因蓝徽标) -->
+    <path
+        android:fillColor="#2563EB"
+        android:pathData="M62,56 c0,-1.5 2,-3 6,-4 c4,1 6,2.5 6,4 c0,4 -3.5,8 -6,9 c-2.5,-1 -6,-5 -6,-9 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M67,61.5 l-2,-2 l1,-1 l1,1 l3,-3 l1,1 z" />
+</vector>

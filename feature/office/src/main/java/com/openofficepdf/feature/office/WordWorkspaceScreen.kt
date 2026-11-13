@@ -106,44 +106,56 @@ fun WordWorkspaceScreen(
             )
         },
         bottomBar = {
-            // 富文本快捷排版工具栏
-            Surface(
-                tonalElevation = 4.dp,
-                modifier = Modifier.fillMaxWidth()
+            // 悬浮圆角胶囊工具栏
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .navigationBarsPadding(),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 8.dp,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    IconButton(onClick = { viewModel.toggleBold() }) {
-                        Icon(
-                            Icons.Default.FormatBold,
-                            contentDescription = "加粗",
-                            tint = if (uiState.isBold) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                        )
-                    }
-                    IconButton(onClick = { viewModel.toggleItalic() }) {
-                        Icon(
-                            Icons.Default.FormatItalic,
-                            contentDescription = "斜体",
-                            tint = if (uiState.isItalic) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                        )
-                    }
-                    IconButton(onClick = { viewModel.toggleUnderline() }) {
-                        Icon(
-                            Icons.Default.FormatUnderlined,
-                            contentDescription = "下划线",
-                            tint = if (uiState.isUnderline) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                        )
-                    }
-                    IconButton(onClick = { viewModel.insertTable(3, 3) }) {
-                        Icon(Icons.Default.TableChart, contentDescription = "插入表格")
-                    }
-                    IconButton(onClick = { /* 插入图片 */ }) {
-                        Icon(Icons.Default.Image, contentDescription = "插入图片")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { viewModel.toggleBold() }) {
+                            Icon(
+                                Icons.Default.FormatBold,
+                                contentDescription = "加粗",
+                                tint = if (uiState.isBold) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            )
+                        }
+                        IconButton(onClick = { viewModel.toggleItalic() }) {
+                            Icon(
+                                Icons.Default.FormatItalic,
+                                contentDescription = "斜体",
+                                tint = if (uiState.isItalic) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            )
+                        }
+                        IconButton(onClick = { viewModel.toggleUnderline() }) {
+                            Icon(
+                                Icons.Default.FormatUnderlined,
+                                contentDescription = "下划线",
+                                tint = if (uiState.isUnderline) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            )
+                        }
+                        IconButton(onClick = { viewModel.insertTable(3, 3) }) {
+                            Icon(Icons.Default.TableChart, contentDescription = "插入表格")
+                        }
+                        IconButton(onClick = { /* 插入图片 */ }) {
+                            Icon(Icons.Default.Image, contentDescription = "插入图片")
+                        }
                     }
                 }
             }
