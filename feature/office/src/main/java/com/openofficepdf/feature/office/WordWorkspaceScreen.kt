@@ -6,7 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -213,7 +216,12 @@ fun WordDocumentSurface(
     val blocks = parsedDocx?.blocks.orEmpty()
     val isPrintMode = viewMode == WordLayoutViewMode.PRINT_LAYOUT
 
-    SelectionContainer {
+    val customTextSelectionColors = TextSelectionColors(
+        handleColor = MaterialTheme.colorScheme.primary,
+        backgroundColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+    )
+
+    CompositionLocalProvider(LocalTextSelectionColors provides customTextSelectionColors) {
         androidx.compose.foundation.lazy.LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -259,7 +267,7 @@ fun WordDocumentSurface(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            "轻点段落可原位打字编辑 · 移动重排 ${parsedDocx?.totalWords ?: 0} 字",
+                            "轻点即可插入光标 · 支持常规手柄拖动选取、自由复制与直接打字 · ${parsedDocx?.totalWords ?: 0} 字",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
@@ -289,7 +297,6 @@ fun WordDocumentSurface(
             }
         }
     }
-}
 }
 
 @Composable
@@ -353,47 +360,39 @@ private fun DocxBlockItem(
         is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock -> {
             val p = block.paragraph
             val baseFontSize = ((if (isPrintMode) 14 else 15) * zoomScale).coerceIn(9f, 48f)
-            var isEditing by remember { mutableStateOf(false) }
-            var editText by remember(p.fullText) { mutableStateOf(p.fullText) }
-
-            if (isEditing) {
-                OutlinedTextField(
-                    value = editText,
-                    onValueChange = {
-                        editText = it
-                        onUpdateText(it)
-                    },
-                    modifier = containerModifier,
-                    textStyle = androidx.compose.ui.text.TextStyle(
-                        fontSize = baseFontSize.sp,
-                        fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
-                        lineHeight = (if (isPrintMode) 22 * zoomScale else 24 * zoomScale).sp
-                    ),
-                    trailingIcon = {
-                        IconButton(onClick = { isEditing = false }) {
-                            Icon(Icons.Default.Check, contentDescription = "完成编辑", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                )
+            val fontStyle = if (p.runs.any { it.isItalic }) {
+                androidx.compose.ui.text.font.FontStyle.Italic
             } else {
-                Text(
-                    text = p.fullText,
+                androidx.compose.ui.text.font.FontStyle.Normal
+            }
+            val fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal
+
+            var textFieldValue by remember(p.fullText) {
+                mutableStateOf(TextFieldValue(text = p.fullText))
+            }
+
+            BasicTextField(
+                value = textFieldValue,
+                onValueChange = { newValue ->
+                    textFieldValue = newValue
+                    if (newValue.text != p.fullText) {
+                        onUpdateText(newValue.text)
+                    }
+                },
+                modifier = containerModifier,
+                textStyle = androidx.compose.ui.text.TextStyle(
                     fontSize = if (p.isHeading) {
                         ((14 + maxOf(0, 6 - p.headingLevel.coerceIn(1, 6)) * 2) * zoomScale).sp
                     } else {
                         baseFontSize.sp
                     },
-                    fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
-                    fontStyle = if (p.runs.any { it.isItalic }) {
-                        androidx.compose.ui.text.font.FontStyle.Italic
-                    } else {
-                        androidx.compose.ui.text.font.FontStyle.Normal
-                    },
+                    fontWeight = fontWeight,
+                    fontStyle = fontStyle,
                     lineHeight = (if (isPrintMode) 22 * zoomScale else 24 * zoomScale).sp,
-                    modifier = containerModifier
-                        .clickable { isEditing = true }
-                )
-            }
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary)
+            )
         }
         is com.openofficepdf.engine.office.openxml.DocxBlock.TableBlock -> {
             val borderColor = if (isPrintMode) Color.LightGray else MaterialTheme.colorScheme.outlineVariant
@@ -405,9 +404,19 @@ private fun DocxBlockItem(
                 block.table.rows.forEach { row ->
                     Row(modifier = Modifier.fillMaxWidth()) {
                         row.forEach { cell ->
-                            Text(
-                                text = cell.text,
-                                fontSize = (13 * zoomScale).sp,
+                            var cellFieldValue by remember(cell.text) {
+                                mutableStateOf(TextFieldValue(text = cell.text))
+                            }
+                            BasicTextField(
+                                value = cellFieldValue,
+                                onValueChange = { newValue ->
+                                    cellFieldValue = newValue
+                                },
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = (13 * zoomScale).sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
                                 modifier = Modifier
                                     .weight(1f)
                                     .border(0.5.dp, borderColor)

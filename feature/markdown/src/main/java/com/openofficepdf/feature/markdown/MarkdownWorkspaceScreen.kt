@@ -27,6 +27,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openofficepdf.core.model.DocumentId
@@ -210,6 +211,10 @@ fun MarkdownSourceEditor(
     val textColor = if (isNightMode) Color(0xFFD4D4D4) else Color(0xFF1E1E1E)
     val bgColor = if (isNightMode) Color(0xFF1E1E1E) else Color(0xFFFFFFFF)
 
+    var textFieldValue by remember(source) {
+        mutableStateOf(TextFieldValue(text = source))
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -217,9 +222,16 @@ fun MarkdownSourceEditor(
             .padding(12.dp)
     ) {
         BasicTextField(
-            value = source,
-            onValueChange = {
-                onSourceChanged(it)
+            value = textFieldValue,
+            onValueChange = { newValue ->
+                textFieldValue = newValue
+                if (newValue.text != source) {
+                    onSourceChanged(newValue.text)
+                }
+                // 根据光标所在位置计算当前行号，用于双栏滚动同步
+                val cursorPosition = newValue.selection.start
+                val currentLine = newValue.text.take(cursorPosition).count { it == '\n' } + 1
+                onCursorLineChanged(currentLine)
             },
             textStyle = TextStyle(
                 fontFamily = FontFamily.Monospace,
