@@ -118,7 +118,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             OpenOfficeTheme {
                 Surface(
-                    color = MaterialTheme.colorScheme.background
+                    color = MaterialTheme.colorScheme.background,
+                    modifier = androidx.compose.ui.Modifier.fillMaxSize()
                 ) {
                     var currentRoute by rememberSaveable { mutableStateOf("home") }
                     val recentDocs by homeViewModel.recentDocuments.collectAsState()
@@ -128,45 +129,51 @@ class MainActivity : ComponentActivity() {
                         currentRoute = "home"
                     }
 
-                    when (currentRoute) {
-                        "settings" -> SettingsScreen(onBack = { currentRoute = "home" })
-                        "pdf" -> PdfViewerScreen(viewModel = pdfViewModel, onNavigateBack = { currentRoute = "home" })
-                        "word" -> WordWorkspaceScreen(viewModel = wordViewModel, onNavigateBack = { currentRoute = "home" })
-                        "excel" -> ExcelWorkspaceScreen(viewModel = excelViewModel, onNavigateBack = { currentRoute = "home" })
-                        "ppt" -> PresentationScreen(viewModel = pptViewModel, onNavigateBack = { currentRoute = "home" })
-                        "markdown" -> MarkdownWorkspaceScreen(viewModel = mdViewModel, onNavigateBack = { currentRoute = "home" })
-                        "ocr" -> OcrScreen(viewModel = ocrViewModel, onNavigateBack = { currentRoute = "home" })
-                        "converter" -> ConverterScreen(viewModel = convViewModel, onNavigateBack = { currentRoute = "home" })
-                        else -> HomeScreen(
-                            recentDocuments = recentDocs,
-                            onEntryClick = { route -> currentRoute = route },
-                            onSettingsClick = { currentRoute = "settings" },
-                            onOpenDocument = { doc ->
-                                when (doc.format.lowercase()) {
-                                    "pdf" -> {
-                                        pdfViewModel.openPdfDocument(android.net.Uri.parse(doc.uri), doc.displayName)
-                                        currentRoute = "pdf"
+                    androidx.compose.foundation.layout.Box(
+                        modifier = androidx.compose.ui.Modifier
+                            .fillMaxSize()
+                            .androidx.compose.foundation.layout.safeDrawingPadding()
+                    ) {
+                        when (currentRoute) {
+                            "settings" -> SettingsScreen(onBack = { currentRoute = "home" })
+                            "pdf" -> PdfViewerScreen(viewModel = pdfViewModel, onNavigateBack = { currentRoute = "home" })
+                            "word" -> WordWorkspaceScreen(viewModel = wordViewModel, onNavigateBack = { currentRoute = "home" })
+                            "excel" -> ExcelWorkspaceScreen(viewModel = excelViewModel, onNavigateBack = { currentRoute = "home" })
+                            "ppt" -> PresentationScreen(viewModel = pptViewModel, onNavigateBack = { currentRoute = "home" })
+                            "markdown" -> MarkdownWorkspaceScreen(viewModel = mdViewModel, onNavigateBack = { currentRoute = "home" })
+                            "ocr" -> OcrScreen(viewModel = ocrViewModel, onNavigateBack = { currentRoute = "home" })
+                            "converter" -> ConverterScreen(viewModel = convViewModel, onNavigateBack = { currentRoute = "home" })
+                            else -> HomeScreen(
+                                recentDocuments = recentDocs,
+                                onEntryClick = { route -> currentRoute = route },
+                                onSettingsClick = { currentRoute = "settings" },
+                                onOpenDocument = { doc ->
+                                    when (doc.format.lowercase()) {
+                                        "pdf" -> {
+                                            pdfViewModel.openPdfDocument(android.net.Uri.parse(doc.uri), doc.displayName)
+                                            currentRoute = "pdf"
+                                        }
+                                        "docx", "doc" -> {
+                                            wordViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
+                                            currentRoute = "word"
+                                        }
+                                        "xlsx" -> {
+                                            excelViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
+                                            currentRoute = "excel"
+                                        }
+                                        "pptx" -> {
+                                            pptViewModel.openPresentation(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
+                                            currentRoute = "ppt"
+                                        }
+                                        "markdown", "md" -> {
+                                            mdViewModel.openFromUri(android.net.Uri.parse(doc.uri), doc.displayName)
+                                            currentRoute = "markdown"
+                                        }
+                                        else -> currentRoute = "pdf"
                                     }
-                                    "docx" -> {
-                                        wordViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
-                                        currentRoute = "word"
-                                    }
-                                    "xlsx" -> {
-                                        excelViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
-                                        currentRoute = "excel"
-                                    }
-                                    "pptx" -> {
-                                        pptViewModel.openPresentation(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
-                                        currentRoute = "ppt"
-                                    }
-                                    "markdown", "md" -> {
-                                        mdViewModel.openFromUri(android.net.Uri.parse(doc.uri), doc.displayName)
-                                        currentRoute = "markdown"
-                                    }
-                                    else -> currentRoute = "pdf"
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }

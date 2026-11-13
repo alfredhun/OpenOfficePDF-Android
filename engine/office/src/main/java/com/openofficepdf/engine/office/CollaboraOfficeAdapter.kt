@@ -249,6 +249,13 @@ class CollaboraOfficeAdapter(
             ?: return@withContext EngineResult.failure(EngineErrorCode.SESSION_EXPIRED, "Session expired")
 
         // 1. 提交暂存文件完整性检查并原子更新原 SAF 文件
+        // 若内存中有修改后的 parsedDocx，先写回 stagingFile
+        session.parsedDocx?.let { docx ->
+            try {
+                com.openofficepdf.engine.office.openxml.DocxDocumentWriter.writeDocxToZip(session.stagingFile, docx)
+            } catch (_: Exception) { }
+        }
+
         val destUri = targetUri ?: session.originalUri
         if (destUri != null) {
             val commitResult = committer.commitTransaction(

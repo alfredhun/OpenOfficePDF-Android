@@ -110,7 +110,7 @@ fun WordWorkspaceScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
                     .navigationBarsPadding(),
                 contentAlignment = Alignment.Center
             ) {
@@ -125,10 +125,13 @@ fun WordWorkspaceScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceAround,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        IconButton(onClick = { viewModel.appendNewParagraph("新录入段落内容...") }) {
+                            Icon(Icons.Default.PostAdd, contentDescription = "新增段落", tint = MaterialTheme.colorScheme.primary)
+                        }
                         IconButton(onClick = { viewModel.toggleBold() }) {
                             Icon(
                                 Icons.Default.FormatBold,
@@ -153,9 +156,6 @@ fun WordWorkspaceScreen(
                         IconButton(onClick = { viewModel.insertTable(3, 3) }) {
                             Icon(Icons.Default.TableChart, contentDescription = "插入表格")
                         }
-                        IconButton(onClick = { /* 插入图片 */ }) {
-                            Icon(Icons.Default.Image, contentDescription = "插入图片")
-                        }
                     }
                 }
             }
@@ -171,7 +171,11 @@ fun WordWorkspaceScreen(
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
                 // Word 画板区域
-                WordDocumentSurface(viewMode = uiState.viewMode, parsedDocx = uiState.parsedDocx)
+                WordDocumentSurface(
+                    viewMode = uiState.viewMode,
+                    parsedDocx = uiState.parsedDocx,
+                    onUpdateParagraph = { idx, text -> viewModel.updateParagraphText(idx, text) }
+                )
             }
         }
     }
@@ -183,7 +187,8 @@ fun WordWorkspaceScreen(
 @Composable
 fun WordDocumentSurface(
     viewMode: WordLayoutViewMode,
-    parsedDocx: com.openofficepdf.engine.office.openxml.ParsedDocxDocument?
+    parsedDocx: com.openofficepdf.engine.office.openxml.ParsedDocxDocument?,
+    onUpdateParagraph: (Int, String) -> Unit = { _, _ -> }
 ) {
     val blocks = parsedDocx?.blocks.orEmpty()
     val isPrintMode = viewMode == WordLayoutViewMode.PRINT_LAYOUT
@@ -192,7 +197,8 @@ fun WordDocumentSurface(
         modifier = Modifier
             .fillMaxSize()
             .background(if (isPrintMode) Color(0xFFE8E8E8) else Color.White)
-            .padding(horizontal = if (isPrintMode) 16.dp else 16.dp, vertical = if (isPrintMode) 16.dp else 20.dp)
+            .padding(horizontal = if (isPrintMode) 16.dp else 16.dp, vertical = if (isPrintMode) 16.dp else 20.dp),
+        contentPadding = PaddingValues(bottom = 96.dp)
     ) {
         // 顶部状态栏 / 页眉
         item(key = "header") {
@@ -227,7 +233,7 @@ fun WordDocumentSurface(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            "移动端自适应排版已激活：${parsedDocx?.totalWords ?: 0} 字，自动换行无横向滚动",
+                            "轻点段落可原位打字编辑 · 移动重排 ${parsedDocx?.totalWords ?: 0} 字",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
@@ -248,8 +254,10 @@ fun WordDocumentSurface(
                 key = { idx -> "block_$idx" }
             ) { idx ->
                 DocxBlockItem(
+                    blockIndex = idx,
                     block = blocks[idx],
-                    isPrintMode = isPrintMode
+                    isPrintMode = isPrintMode,
+                    onUpdateText = { newText -> onUpdateParagraph(idx, newText) }
                 )
             }
         }
@@ -296,8 +304,10 @@ private fun EmptyDocxPlaceholder(isPrintMode: Boolean) {
 
 @Composable
 private fun DocxBlockItem(
+    blockIndex: Int,
     block: com.openofficepdf.engine.office.openxml.DocxBlock,
-    isPrintMode: Boolean
+    isPrintMode: Boolean,
+    onUpdateText: (String) -> Unit
 ) {
     val containerModifier = if (isPrintMode) {
         Modifier
@@ -314,22 +324,47 @@ private fun DocxBlockItem(
         is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock -> {
             val p = block.paragraph
             val baseFontSize = if (isPrintMode) 14 else 15
-            Text(
-                text = p.fullText,
-                fontSize = if (p.isHeading) {
-                    (14 + maxOf(0, 6 - p.headingLevel.coerceIn(1, 6)) * 2).sp
-                } else {
-                    baseFontSize.sp
-                },
-                fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
-                fontStyle = if (p.runs.any { it.isItalic }) {
-                    androidx.compose.ui.text.font.FontStyle.Italic
-                } else {
-                    androidx.compose.ui.text.font.FontStyle.Normal
-                },
-                lineHeight = if (isPrintMode) 22.sp else 24.sp,
-                modifier = containerModifier
-            )
+            var isEditing by remember { mutableStateOf(false) }
+            var editText by remember(p.fullText) { mutableStateOf(p.fullText) }
+
+            if (isEditing) {
+                OutlinedTextField(
+                    value = editText,
+                    onValueChange = {
+                        editText = it
+                        onUpdateText(it)
+                    },
+                    modifier = containerModifier,
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontSize = baseFontSize.sp,
+                        fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
+                        lineHeight = if (isPrintMode) 22.sp else 24.sp
+                    ),
+                    trailingIcon = {
+                        IconButton(onClick = { isEditing = false }) {
+                            Icon(Icons.Default.Check, contentDescription = "完成编辑", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                )
+            } else {
+                Text(
+                    text = p.fullText,
+                    fontSize = if (p.isHeading) {
+                        (14 + maxOf(0, 6 - p.headingLevel.coerceIn(1, 6)) * 2).sp
+                    } else {
+                        baseFontSize.sp
+                    },
+                    fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
+                    fontStyle = if (p.runs.any { it.isItalic }) {
+                        androidx.compose.ui.text.font.FontStyle.Italic
+                    } else {
+                        androidx.compose.ui.text.font.FontStyle.Normal
+                    },
+                    lineHeight = if (isPrintMode) 22.sp else 24.sp,
+                    modifier = containerModifier
+                        .androidx.compose.foundation.clickable { isEditing = true }
+                )
+            }
         }
         is com.openofficepdf.engine.office.openxml.DocxBlock.TableBlock -> {
             val borderColor = if (isPrintMode) Color.LightGray else MaterialTheme.colorScheme.outlineVariant

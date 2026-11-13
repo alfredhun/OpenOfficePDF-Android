@@ -20,14 +20,57 @@ object DocxDocumentParser {
             return ParsedDocxDocument(title, emptyList(), 0)
         }
 
-        // 校验 ZIP 魔数: PK\x03\x04
+        // 1. 检查是否为旧版二进制 .doc (OLE2 Compound File Header: 0xD0, 0xCF, 0x11, 0xE0)
+        if (bytes.size >= 8 &&
+            bytes[0] == 0xD0.toByte() && bytes[1] == 0xCF.toByte() &&
+            bytes[2] == 0x11.toByte() && bytes[3] == 0xE0.toByte()) {
+            val extractedDocText = extractBinaryDocText(bytes)
+            return if (extractedDocText.isNotBlank()) {
+                val paragraphs = extractedDocText.lines().filter { it.isNotBlank() }.map { line ->
+                    DocxBlock.ParagraphBlock(
+                        DocxParagraph(
+                            runs = listOf(DocxRun(text = line)),
+                            isHeading = false
+                        )
+                    )
+                }
+                ParsedDocxDocument(
+                    title = title,
+                    blocks = listOf(
+                        DocxBlock.ParagraphBlock(
+                            DocxParagraph(
+                                runs = listOf(DocxRun(text = "【旧版 Word .doc 二进制兼容模式】", isBold = true)),
+                                isHeading = true,
+                                headingLevel = 2
+                            )
+                        )
+                    ) + paragraphs,
+                    totalWords = extractedDocText.length
+                )
+            } else {
+                ParsedDocxDocument(
+                    title = title,
+                    blocks = listOf(
+                        DocxBlock.ParagraphBlock(
+                            DocxParagraph(
+                                runs = listOf(DocxRun(text = "【旧版 Word 97-2003 .doc 文档】该文件为老旧二进制复合文档，未检测到有效正文流。")),
+                                isHeading = false
+                            )
+                        )
+                    ),
+                    totalWords = 0
+                )
+            }
+        }
+
+        // 2. 校验标准 ZIP 魔数: PK\x03\x04
         if (bytes.size < 4 || bytes[0] != 0x50.toByte() || bytes[1] != 0x4B.toByte() || bytes[2] != 0x03.toByte() || bytes[3] != 0x04.toByte()) {
             return ParsedDocxDocument(
                 title = title,
                 blocks = listOf(
                     DocxBlock.ParagraphBlock(
                         DocxParagraph(
-                            runs = listOf(DocxRun(text = "【格式不支持】该文档并非标准 OpenXML (.docx) 格式，可能为旧版二进制 .doc 或加密文档。")),
+                            runs = listOf(DocxRun(text = "【格式不支持】该文档并非有效 Word (.docx/.doc) 格式，或已损坏受密。")),
                             isHeading = false
                         )
                     )
@@ -254,5 +297,47 @@ object DocxDocumentParser {
         }
 
         return DocxTableCell(paragraphs = paragraphs)
+    }
+
+    /**
+     * 极轻量离线提取老旧 Word 97-2003 二进制 .doc (OLE2 Compound Document) 的文本内容
+     * 通过扫描 WordDocument 核心流中的连续可打印字符或 UTF-16LE 宽字符
+     */
+    private fun extractBinaryDocText(bytes: ByteArray): String {
+        val sb = StringBuilder()
+        var i = 512 // 跳过 OLE2 头部 512 字节
+        val len = bytes.size
+
+        while (i < len - 1) {
+            // 尝试以 UTF-16LE 扫描双字节
+            val b0 = bytes[i].toInt() and 0xFF
+            val b1 = bytes[i + 1].toInt() and 0xFF
+            val charCode = (b1 shl 8) or b0
+
+            if (charCode in 0x20..0x7E || charCode in 0x4E00..0x9FA5 || charCode == 0x0A || charCode == 0x0D) {
+                if (charCode == 0x0D) {
+                    sb.append('\n')
+                } else if (charCode != 0x0A) {
+                    sb.append(charCode.toChar())
+                }
+                i += 2
+            } else {
+                // 尝试单字节 ASCII / ANSI 字符
+                val b = bytes[i].toInt() and 0xFF
+                if (b in 0x20..0x7E || b in 0xA1..0xFE) {
+                    sb.append(b.toChar())
+                } else if (b == 0x0D) {
+                    sb.append('\n')
+                }
+                i++
+            }
+        }
+
+        // 清理杂质与连续多余换行
+        val raw = sb.toString().replace(Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "")
+        return raw.split('\n')
+            .map { it.trim() }
+            .filter { it.length >= 2 }
+            .joinToString("\n")
     }
 }

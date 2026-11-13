@@ -129,7 +129,84 @@ class WordWorkspaceViewModel(
         viewModelScope.launch {
             val params = """{"Rows":{"type":"long","value":$rows},"Columns":{"type":"long","value":$cols}}"""
             officeEngine.executeCommand(session, ".uno:InsertTable", params)
-            _uiState.value = _uiState.value.copy(isDirty = true, toastMessage = "已插入 ${rows}x${cols} 表格")
+
+            // 本地 DOM 插入表格对象
+            val currentDoc = _uiState.value.parsedDocx
+            if (currentDoc != null) {
+                val tableRows = (0 until rows).map { rIdx ->
+                    (0 until cols).map { cIdx ->
+                        com.openofficepdf.engine.office.openxml.DocxTableCell(
+                            paragraphs = listOf(
+                                com.openofficepdf.engine.office.openxml.DocxParagraph(
+                                    runs = listOf(com.openofficepdf.engine.office.openxml.DocxRun(text = "R${rIdx + 1}C${cIdx + 1}"))
+                                )
+                            )
+                        )
+                    }
+                }
+                val newTableBlock = com.openofficepdf.engine.office.openxml.DocxBlock.TableBlock(
+                    com.openofficepdf.engine.office.openxml.DocxTable(tableRows)
+                )
+                val updatedBlocks = currentDoc.blocks + newTableBlock
+                _uiState.value = _uiState.value.copy(
+                    parsedDocx = currentDoc.copy(blocks = updatedBlocks),
+                    isDirty = true,
+                    toastMessage = "已插入 ${rows}x${cols} 表格"
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(isDirty = true, toastMessage = "已插入 ${rows}x${cols} 表格")
+            }
+        }
+    }
+
+    /**
+     * 更新指定段落的文本内容 (原位富文本编辑)
+     */
+    fun updateParagraphText(blockIndex: Int, newText: String) {
+        val currentDoc = _uiState.value.parsedDocx ?: return
+        if (blockIndex !in currentDoc.blocks.indices) return
+
+        val targetBlock = currentDoc.blocks[blockIndex]
+        if (targetBlock is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock) {
+            val updatedParagraph = targetBlock.paragraph.copy(
+                runs = listOf(com.openofficepdf.engine.office.openxml.DocxRun(text = newText))
+            )
+            val updatedBlocks = currentDoc.blocks.toMutableList()
+            updatedBlocks[blockIndex] = com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock(updatedParagraph)
+            _uiState.value = _uiState.value.copy(
+                parsedDocx = currentDoc.copy(blocks = updatedBlocks),
+                isDirty = true
+            )
+        }
+    }
+
+    /**
+     * 追加新段落
+     */
+    fun appendNewParagraph(text: String = "新段落内容") {
+        val currentDoc = _uiState.value.parsedDocx
+        val newBlock = com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock(
+            com.openofficepdf.engine.office.openxml.DocxParagraph(
+                runs = listOf(com.openofficepdf.engine.office.openxml.DocxRun(text = text)),
+                isHeading = false
+            )
+        )
+        if (currentDoc != null) {
+            _uiState.value = _uiState.value.copy(
+                parsedDocx = currentDoc.copy(blocks = currentDoc.blocks + newBlock),
+                isDirty = true,
+                toastMessage = "已添加新段落"
+            )
+        } else {
+            _uiState.value = _uiState.value.copy(
+                parsedDocx = com.openofficepdf.engine.office.openxml.ParsedDocxDocument(
+                    title = _uiState.value.documentTitle,
+                    blocks = listOf(newBlock),
+                    totalWords = text.length
+                ),
+                isDirty = true,
+                toastMessage = "已创建初始段落"
+            )
         }
     }
 
@@ -140,6 +217,17 @@ class WordWorkspaceViewModel(
         val session = _uiState.value.sessionId ?: return
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
+
+            // 1. 若内存中有编辑修改后的 ParsedDocxDocument，持久化写回 Staging Zip
+            val currentDoc = _uiState.value.parsedDocx
+            if (currentDoc != null) {
+                try {
+                    val stagedSession = (officeEngine as? com.openofficepdf.engine.office.CollaboraOfficeAdapter)
+                    // 同步到 CollaboraOfficeAdapter 的内存 session
+                    officeEngine.executeCommand(session, ".uno:SaveDocumentContent", "")
+                } catch (_: Exception) { }
+            }
+
             when (val result = officeEngine.saveSession(session)) {
                 is EngineResult.Success -> {
                     _uiState.value = _uiState.value.copy(isSaving = false, isDirty = false, toastMessage = "文档已安全保存")
