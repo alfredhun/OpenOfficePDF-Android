@@ -93,7 +93,7 @@ object DocxDocumentParser {
                             val styleVal = parser.getAttributeValue(null, "val") ?: ""
                             if (styleVal.startsWith("Heading") || styleVal.contains("标题")) {
                                 isHeading = true
-                                headingLevel = styleVal.filter { it.isDigit() }.toIntOrNull() ?: 1
+                                headingLevel = (styleVal.filter { it.isDigit() }.toIntOrNull() ?: 1).coerceIn(1, 6)
                             }
                         }
                         "r" -> {

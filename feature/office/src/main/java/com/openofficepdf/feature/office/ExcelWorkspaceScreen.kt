@@ -67,10 +67,17 @@ fun ExcelWorkspaceScreen(
                     }
                 },
                 actions = {
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
                         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
                     ) { uri ->
                         if (uri != null) {
+                            try {
+                                context.contentResolver.takePersistableUriPermission(
+                                    uri,
+                                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                            } catch (_: Exception) { }
                             val title = uri.lastPathSegment?.substringAfterLast('/') ?: "工作簿.xlsx"
                             viewModel.openDocument(com.openofficepdf.core.model.DocumentId(uri.toString()), title, uri)
                         }
@@ -98,18 +105,21 @@ fun ExcelWorkspaceScreen(
         },
         bottomBar = {
             // 底部工作表 (Sheet) 切换标签栏
-            Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
-                ScrollableTabRow(
-                    selectedTabIndex = uiState.activeSheetIndex,
-                    edgePadding = 12.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    uiState.sheets.forEachIndexed { index, sheet ->
-                        Tab(
-                            selected = uiState.activeSheetIndex == index,
-                            onClick = { viewModel.switchSheet(index) },
-                            text = { Text(sheet.sheetName) }
-                        )
+            if (uiState.sheets.isNotEmpty()) {
+                val safeTabIndex = uiState.activeSheetIndex.coerceIn(0, uiState.sheets.size - 1)
+                Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+                    ScrollableTabRow(
+                        selectedTabIndex = safeTabIndex,
+                        edgePadding = 12.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        uiState.sheets.forEachIndexed { index, sheet ->
+                            Tab(
+                                selected = safeTabIndex == index,
+                                onClick = { viewModel.switchSheet(index) },
+                                text = { Text(sheet.sheetName) }
+                            )
+                        }
                     }
                 }
             }
@@ -139,6 +149,16 @@ fun ExcelWorkspaceScreen(
     }
 }
 
+private fun formatColumnLetter(colIndex: Int): String {
+    var c = colIndex
+    val sb = StringBuilder()
+    while (c >= 0) {
+        sb.insert(0, ('A'.code + (c % 26)).toChar())
+        c = c / 26 - 1
+    }
+    return sb.toString()
+}
+
 /**
  * 顶部 Excel 公式编辑栏
  */
@@ -150,7 +170,7 @@ fun SpreadsheetFormulaBar(
     onCommit: () -> Unit
 ) {
     val coordName = if (selectedCoord != null) {
-        val colLetter = ('A'.code + selectedCoord.second).toChar()
+        val colLetter = formatColumnLetter(selectedCoord.second)
         "$colLetter${selectedCoord.first + 1}"
     } else {
         "A1"
@@ -239,7 +259,7 @@ fun SpreadsheetGrid(
                         .border(0.5.dp, Color(0xFFD4D4D4))
                 )
                 for (c in 0 until sheet.totalCols) {
-                    val colLetter = ('A'.code + c).toChar().toString()
+                    val colLetter = formatColumnLetter(c)
                     Box(
                         modifier = Modifier
                             .size(width = cellWidth, height = headerHeight)
@@ -256,8 +276,8 @@ fun SpreadsheetGrid(
                 }
             }
 
-            // 数据行虚拟列表
-            LazyColumn(modifier = Modifier.fillMaxHeight()) {
+            // 数据行虚拟列表 (使用 weight(1f) 自适应横竖屏剩余高度，杜绝横屏崩溃)
+            LazyColumn(modifier = Modifier.weight(1f)) {
                 items(sheet.totalRows) { r ->
                     Row(modifier = Modifier.height(rowHeight)) {
                         // 行号 (1, 2, 3...)

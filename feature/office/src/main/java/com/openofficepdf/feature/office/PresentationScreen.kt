@@ -74,10 +74,17 @@ fun PresentationScreen(
                         }
                     },
                     actions = {
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
                             contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
                         ) { uri ->
                             if (uri != null) {
+                                try {
+                                    context.contentResolver.takePersistableUriPermission(
+                                        uri,
+                                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    )
+                                } catch (_: Exception) { }
                                 val title = uri.lastPathSegment?.substringAfterLast('/') ?: "演示文稿.pptx"
                                 viewModel.openPresentation(com.openofficepdf.core.model.DocumentId(uri.toString()), title, uri)
                             }
@@ -203,20 +210,26 @@ fun SlideDisplaySurface(
 ) {
     var activePoints by remember { mutableStateOf<List<Offset>>(emptyList()) }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
-        // 16:9 标准幻灯片画板
+        val slideAspect = 16f / 9f
+        val containerAspect = if (maxHeight.value > 0) maxWidth / maxHeight else slideAspect
+        val surfaceModifier = if (containerAspect > slideAspect) {
+            Modifier.fillMaxHeight().aspectRatio(slideAspect)
+        } else {
+            Modifier.fillMaxWidth().aspectRatio(slideAspect)
+        }
+
+        // 16:9 标准幻灯片画板 (自适应横竖屏容器尺寸，彻底杜绝横屏约束崩溃)
         Surface(
             shape = RoundedCornerShape(4.dp),
             shadowElevation = 8.dp,
             color = Color.White,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
+            modifier = surfaceModifier
                 .border(1.dp, Color(0xFFC0C0C0))
                 .pointerInput(interactionMode) {
                     if (interactionMode == SlideInteractionMode.INK_PEN) {

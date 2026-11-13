@@ -54,10 +54,17 @@ fun WordWorkspaceScreen(
                     }
                 },
                 actions = {
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
                         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
                     ) { uri ->
                         if (uri != null) {
+                            try {
+                                context.contentResolver.takePersistableUriPermission(
+                                    uri,
+                                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                            } catch (_: Exception) { }
                             val title = uri.lastPathSegment?.substringAfterLast('/') ?: "文档.docx"
                             viewModel.openDocument(com.openofficepdf.core.model.DocumentId(uri.toString()), title, uri)
                         }
@@ -215,7 +222,7 @@ fun WordDocumentSurface(
                                         val p = block.paragraph
                                         Text(
                                             text = p.fullText,
-                                            fontSize = if (p.isHeading) (18 + (3 - p.headingLevel) * 2).sp else 14.sp,
+                                            fontSize = if (p.isHeading) (14 + maxOf(0, 6 - p.headingLevel.coerceIn(1, 6)) * 2).sp else 14.sp,
                                             fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
                                             fontStyle = if (p.runs.any { it.isItalic }) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
                                             lineHeight = 22.sp,
@@ -296,7 +303,7 @@ fun WordDocumentSurface(
                             val p = block.paragraph
                             Text(
                                 text = p.fullText,
-                                fontSize = if (p.isHeading) (18 + (3 - p.headingLevel) * 2).sp else 15.sp,
+                                fontSize = if (p.isHeading) (14 + maxOf(0, 6 - p.headingLevel.coerceIn(1, 6)) * 2).sp else 15.sp,
                                 fontWeight = if (p.isHeading || p.runs.any { it.isBold }) FontWeight.Bold else FontWeight.Normal,
                                 fontStyle = if (p.runs.any { it.isItalic }) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
                                 lineHeight = 24.sp,
