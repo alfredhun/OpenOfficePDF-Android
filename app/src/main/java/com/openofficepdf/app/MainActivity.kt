@@ -144,23 +144,23 @@ class MainActivity : ComponentActivity() {
                             onOpenDocument = { doc ->
                                 when (doc.format.lowercase()) {
                                     "pdf" -> {
-                                        pdfViewModel.openPdfDocument(android.net.Uri.parse(doc.uri), doc.title)
+                                        pdfViewModel.openPdfDocument(android.net.Uri.parse(doc.uri), doc.displayName)
                                         currentRoute = "pdf"
                                     }
                                     "docx" -> {
-                                        wordViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.title, android.net.Uri.parse(doc.uri))
+                                        wordViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
                                         currentRoute = "word"
                                     }
                                     "xlsx" -> {
-                                        excelViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.title, android.net.Uri.parse(doc.uri))
+                                        excelViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
                                         currentRoute = "excel"
                                     }
                                     "pptx" -> {
-                                        pptViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.title, android.net.Uri.parse(doc.uri))
+                                        pptViewModel.openDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, android.net.Uri.parse(doc.uri))
                                         currentRoute = "ppt"
                                     }
                                     "markdown", "md" -> {
-                                        mdViewModel.loadDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.title, "")
+                                        mdViewModel.loadDocument(com.openofficepdf.core.model.DocumentId(doc.id), doc.displayName, "")
                                         currentRoute = "markdown"
                                     }
                                     else -> currentRoute = "pdf"

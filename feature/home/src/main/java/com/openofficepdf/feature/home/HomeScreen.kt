@@ -358,7 +358,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 32.dp, horizontal = 24.dp),
-                            horizontalAlignment = Alignment.CenterVertically,
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
                             Box(
@@ -474,7 +474,7 @@ private fun RecentDocumentCard(
 
     val dateStr = remember(doc.lastOpenedAt) {
         val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-        sdf.format(Date(doc.lastOpenedAt))
+        sdf.format(Date(doc.lastOpenedAt ?: doc.modifiedAt))
     }
 
     Surface(
@@ -510,7 +510,7 @@ private fun RecentDocumentCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = doc.title,
+                    text = doc.displayName,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -520,7 +520,7 @@ private fun RecentDocumentCard(
                 Spacer(modifier = Modifier.height(3.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "$dateStr · ${(doc.fileSizeBytes / 1024).coerceAtLeast(1)} KB",
+                        text = "$dateStr · ${(doc.sizeBytes / 1024).coerceAtLeast(1)} KB",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
