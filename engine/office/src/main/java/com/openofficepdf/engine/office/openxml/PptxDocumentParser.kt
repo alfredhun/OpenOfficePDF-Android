@@ -17,7 +17,7 @@ object PptxDocumentParser {
         val bytes = try {
             inputStream.readBytes()
         } catch (e: Exception) {
-            return ParsedPptxDocument(title, emptyList())
+            return ParsedPptxDocument(title = title, slides = emptyList())
         }
 
         // 校验 ZIP 魔数: PK\x03\x04
@@ -26,7 +26,7 @@ object PptxDocumentParser {
                 title = "格式兼容提示",
                 paragraphs = listOf("【格式不支持】该演示文稿并非标准 OpenXML (.pptx) 格式，可能为旧版 .ppt 或加密文档。")
             )
-            return ParsedPptxDocument(title, listOf(fallbackSlide))
+            return ParsedPptxDocument(title = title, slides = listOf(fallbackSlide))
         }
 
         val entries = mutableMapOf<String, ByteArray>()

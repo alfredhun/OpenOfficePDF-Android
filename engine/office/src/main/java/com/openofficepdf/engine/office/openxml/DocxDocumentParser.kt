@@ -2,6 +2,7 @@ package com.openofficepdf.engine.office.openxml
 
 import android.util.Xml
 import org.xmlpull.v1.XmlPullParser
+import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
