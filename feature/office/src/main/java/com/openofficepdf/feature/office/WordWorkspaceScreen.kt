@@ -363,7 +363,7 @@ private fun DocxBlockItem(
                     },
                     lineHeight = if (isPrintMode) 22.sp else 24.sp,
                     modifier = containerModifier
-                        .androidx.compose.foundation.clickable { isEditing = true }
+                        .clickable { isEditing = true }
                 )
             }
         }
