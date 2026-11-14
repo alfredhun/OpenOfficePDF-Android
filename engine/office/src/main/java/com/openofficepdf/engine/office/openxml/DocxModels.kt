@@ -66,5 +66,7 @@ sealed class DocxBlock {
 data class ParsedDocxDocument(
     val title: String,
     val blocks: List<DocxBlock> = emptyList(),
-    val totalWords: Int = 0
+    val totalWords: Int = 0,
+    val headerText: String? = null,
+    val footerText: String? = null
 )

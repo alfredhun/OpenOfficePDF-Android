@@ -82,11 +82,33 @@ object DocxDocumentParser {
         val zip = ZipInputStream(ByteArrayInputStream(bytes))
         var entry: ZipEntry? = try { zip.nextEntry } catch (_: Exception) { null }
         val blocks = mutableListOf<DocxBlock>()
+        var foundHeader: String? = null
+        var foundFooter: String? = null
 
         while (entry != null) {
-            if (entry.name == "word/document.xml") {
+            val name = entry.name
+            if (name == "word/document.xml") {
                 parseDocumentXml(zip, blocks)
-                break
+            } else if (name.startsWith("word/header") && name.endsWith(".xml")) {
+                val headerBlocks = mutableListOf<DocxBlock>()
+                parseDocumentXml(zip, headerBlocks)
+                val text = headerBlocks.filterIsInstance<DocxBlock.ParagraphBlock>()
+                    .map { it.paragraph.fullText.trim() }
+                    .filter { it.isNotBlank() }
+                    .joinToString(" ")
+                if (text.isNotBlank() && foundHeader == null) {
+                    foundHeader = text
+                }
+            } else if (name.startsWith("word/footer") && name.endsWith(".xml")) {
+                val footerBlocks = mutableListOf<DocxBlock>()
+                parseDocumentXml(zip, footerBlocks)
+                val text = footerBlocks.filterIsInstance<DocxBlock.ParagraphBlock>()
+                    .map { it.paragraph.fullText.trim() }
+                    .filter { it.isNotBlank() }
+                    .joinToString(" ")
+                if (text.isNotBlank() && foundFooter == null) {
+                    foundFooter = text
+                }
             }
             try {
                 zip.closeEntry()
@@ -108,7 +130,9 @@ object DocxDocumentParser {
         return ParsedDocxDocument(
             title = title,
             blocks = blocks,
-            totalWords = totalWords
+            totalWords = totalWords,
+            headerText = foundHeader,
+            footerText = foundFooter
         )
     }
 

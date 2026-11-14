@@ -79,6 +79,25 @@ fun WordWorkspaceScreen(
                         }
                     }
 
+                    val clipboardManager = LocalClipboardManager.current
+                    IconButton(onClick = {
+                        val fullDocText = uiState.parsedDocx?.blocks?.joinToString("\n\n") { b ->
+                            when (b) {
+                                is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock -> b.paragraph.fullText
+                                is com.openofficepdf.engine.office.openxml.DocxBlock.TableBlock ->
+                                    b.table.rows.joinToString("\n") { row -> row.joinToString("\t") { it.text } }
+                            }
+                        } ?: ""
+                        if (fullDocText.isNotBlank()) {
+                            clipboardManager.setText(AnnotatedString(fullDocText))
+                            viewModel.showToast("已全选复制整篇 Word 文档！")
+                        } else {
+                            viewModel.showToast("文档内容为空")
+                        }
+                    }) {
+                        Icon(Icons.Default.SelectAll, contentDescription = "全选整篇文档内容", tint = MaterialTheme.colorScheme.primary)
+                    }
+
                     IconButton(onClick = { viewModel.createNewBlankDocument() }) {
                         Icon(Icons.Default.Add, contentDescription = "新建空白文档")
                     }
@@ -267,12 +286,30 @@ fun WordDocumentSurface(
                         .fillMaxWidth()
                         .padding(horizontal = 0.dp)
                 ) {
-                    Text(
-                        text = "页眉：${parsedDocx?.title ?: "OpenOfficePDF 离线文档"}",
-                        fontSize = 11.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 12.dp)
-                    )
+                    Column(
+                        modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = parsedDocx?.headerText ?: (parsedDocx?.title ?: "OpenOfficePDF 离线文档"),
+                                fontSize = (11 * zoomScale).sp,
+                                color = Color.Gray,
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "第 1 页",
+                                fontSize = (10 * zoomScale).sp,
+                                color = Color.LightGray
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Divider(color = Color(0xFFE2E8F0), thickness = 0.8.dp)
+                    }
                 }
             } else {
                 Surface(
@@ -318,6 +355,41 @@ fun WordDocumentSurface(
                     zoomScale = zoomScale,
                     onUpdateText = { newText -> onUpdateParagraph(idx, newText) }
                 )
+            }
+
+            // 底部页脚区域 (打印版式)
+            if (isPrintMode) {
+                item(key = "footer") {
+                    Surface(
+                        color = Color.White,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 24.dp)
+                        ) {
+                            Divider(color = Color(0xFFE2E8F0), thickness = 0.8.dp)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = parsedDocx?.footerText ?: "OpenOfficePDF 离线办公套件",
+                                    fontSize = (10 * zoomScale).sp,
+                                    color = Color.LightGray
+                                )
+                                Text(
+                                    text = "共 1 页",
+                                    fontSize = (10 * zoomScale).sp,
+                                    color = Color.LightGray
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

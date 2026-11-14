@@ -432,7 +432,11 @@ object MarkdownInlineParser {
             .replace(Regex("""\\dfrac\{([^}]+)\}\{([^}]+)\}""")) { match ->
                 "(${match.groupValues[1]} / ${match.groupValues[2]})"
             }
-            // 上标与下标
+            // 字体样式与函数声明 (直接提取内层核心文本)
+            .replace(Regex("""\\(?:mathbf|boldsymbol|mathrm|text|mathit|mathsf|mathbb|mathcal)\{([^}]+)\}""")) { match ->
+                match.groupValues[1]
+            }
+            // 上标与下标 (必须在提取 mathbf/text 之后处理)
             .replace(Regex("""\^\{([^}]+)\}""")) { match ->
                 match.groupValues[1].map { toSuperscript(it.toString()) }.joinToString("")
             }
