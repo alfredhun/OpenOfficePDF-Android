@@ -281,7 +281,7 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         showCreateSheet = false
-                                        onEntryClick("word")
+                                        onCreateNewDoc("word")
                                     }
                                 ) {
                                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -298,7 +298,7 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         showCreateSheet = false
-                                        onEntryClick("excel")
+                                        onCreateNewDoc("excel")
                                     }
                                 ) {
                                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -315,7 +315,7 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         showCreateSheet = false
-                                        onEntryClick("markdown")
+                                        onCreateNewDoc("markdown")
                                     }
                                 ) {
                                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -94,6 +94,9 @@ fun MarkdownWorkspaceScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.createNewBlankDocument() }) {
+                        Icon(Icons.Default.Add, contentDescription = "新建空白笔记")
+                    }
                     IconButton(onClick = { openMdLauncher.launch(arrayOf("text/markdown", "text/plain", "*/*")) }) {
                         Icon(Icons.Default.FolderOpen, contentDescription = "打开本地MD文件")
                     }

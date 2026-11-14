@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -148,6 +150,23 @@ fun PdfViewerScreen(
                                     Icons.Default.Security,
                                     contentDescription = "真脱敏抹除",
                                     tint = if (uiState.interactionMode == PdfInteractionMode.TRUE_REDACTION) MaterialTheme.colorScheme.error else LocalContentColor.current
+                                )
+                            }
+                            val clipboard = LocalClipboardManager.current
+                            IconButton(onClick = {
+                                val fullPdfText = uiState.pageObjects.filterIsInstance<PdfTextObject>()
+                                    .joinToString("\n") { it.text }
+                                if (fullPdfText.isNotBlank()) {
+                                    clipboard.setText(AnnotatedString(fullPdfText))
+                                    viewModel.showToast("已全选复制当前 PDF 页面全部可提取文本！")
+                                } else {
+                                    viewModel.showToast("当前页未检测到文本内容或尚未完成文字流解析")
+                                }
+                            }) {
+                                Icon(
+                                    Icons.Default.SelectAll,
+                                    contentDescription = "全选当前页全部文字",
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }

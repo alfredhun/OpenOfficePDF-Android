@@ -386,6 +386,10 @@ class PdfViewerViewModel(
         )
     }
 
+    fun showToast(msg: String) {
+        _uiState.value = _uiState.value.copy(toastMessage = msg)
+    }
+
     fun clearToast() {
         _uiState.value = _uiState.value.copy(toastMessage = null)
     }

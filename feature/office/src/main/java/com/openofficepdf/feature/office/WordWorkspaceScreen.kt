@@ -9,6 +9,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -75,6 +77,10 @@ fun WordWorkspaceScreen(
                             val title = uri.lastPathSegment?.substringAfterLast('/') ?: "文档.docx"
                             viewModel.openDocument(com.openofficepdf.core.model.DocumentId(uri.toString()), title, uri)
                         }
+                    }
+
+                    IconButton(onClick = { viewModel.createNewBlankDocument() }) {
+                        Icon(Icons.Default.Add, contentDescription = "新建空白文档")
                     }
 
                     IconButton(onClick = { launcher.launch(arrayOf("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword", "*/*")) }) {
@@ -174,6 +180,24 @@ fun WordWorkspaceScreen(
                         }
                         IconButton(onClick = { viewModel.insertTable(3, 3) }) {
                             Icon(Icons.Default.TableChart, contentDescription = "插入表格")
+                        }
+                        val clipboardManager = LocalClipboardManager.current
+                        IconButton(onClick = {
+                            val fullDocText = uiState.parsedDocx?.blocks?.joinToString("\n\n") { b ->
+                                when (b) {
+                                    is com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock -> b.paragraph.fullText
+                                    is com.openofficepdf.engine.office.openxml.DocxBlock.TableBlock ->
+                                        b.table.rows.joinToString("\n") { row -> row.joinToString("\t") { it.text } }
+                                }
+                            } ?: ""
+                            if (fullDocText.isNotBlank()) {
+                                clipboardManager.setText(AnnotatedString(fullDocText))
+                                viewModel.showToast("已全选并复制整篇 Word 文档全部内容！")
+                            } else {
+                                viewModel.showToast("文档内容为空")
+                            }
+                        }) {
+                            Icon(Icons.Default.SelectAll, contentDescription = "全选整篇文档内容", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }

@@ -151,6 +151,23 @@ class MainActivity : ComponentActivity() {
                                 recentDocuments = recentDocs,
                                 onEntryClick = { route -> currentRoute = route },
                                 onSettingsClick = { currentRoute = "settings" },
+                                onCreateNewDoc = { type ->
+                                    when (type) {
+                                        "word" -> {
+                                            wordViewModel.createNewBlankDocument("新建文档.docx")
+                                            currentRoute = "word"
+                                        }
+                                        "excel" -> {
+                                            excelViewModel.createNewBlankWorkbook("新建工作簿.xlsx")
+                                            currentRoute = "excel"
+                                        }
+                                        "markdown" -> {
+                                            mdViewModel.createNewBlankDocument("新建笔记.md")
+                                            currentRoute = "markdown"
+                                        }
+                                        else -> currentRoute = type
+                                    }
+                                },
                                 onOpenDocument = { doc ->
                                     when (doc.format.lowercase()) {
                                         "pdf" -> {

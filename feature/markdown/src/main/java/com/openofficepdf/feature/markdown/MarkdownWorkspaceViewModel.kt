@@ -58,6 +58,21 @@ class MarkdownWorkspaceViewModel(
     private val _uiState = MutableStateFlow(MarkdownUiState())
     val uiState: StateFlow<MarkdownUiState> = _uiState.asStateFlow()
 
+    /**
+     * 新建空白 Markdown 文档
+     */
+    fun createNewBlankDocument(title: String = "新建笔记.md") {
+        _uiState.value = _uiState.value.copy(
+            documentId = DocumentId("new_md_${System.currentTimeMillis()}"),
+            sourceUri = null,
+            documentTitle = title,
+            sourceContent = "",
+            parsedBlocks = emptyList(),
+            isModified = true,
+            toastMessage = "已新建空白 Markdown 笔记"
+        )
+    }
+
     fun loadDocument(docId: DocumentId, title: String, initialMarkdown: String) {
         val sanitized = scrollSync.sanitizeMarkdownText(initialMarkdown)
         val blocks = astParser.parseToBlocks(sanitized)

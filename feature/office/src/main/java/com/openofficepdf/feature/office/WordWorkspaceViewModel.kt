@@ -47,6 +47,32 @@ class WordWorkspaceViewModel(
     private val _uiState = MutableStateFlow(WordWorkspaceUiState())
     val uiState: StateFlow<WordWorkspaceUiState> = _uiState.asStateFlow()
 
+    /**
+     * 新建空白 Word 文档 (消除示例占位符，直接呈现干净的可编辑空白纸张)
+     */
+    fun createNewBlankDocument(title: String = "新建文档.docx") {
+        val blankBlock = com.openofficepdf.engine.office.openxml.DocxBlock.ParagraphBlock(
+            com.openofficepdf.engine.office.openxml.DocxParagraph(
+                runs = listOf(com.openofficepdf.engine.office.openxml.DocxRun(text = "")),
+                isHeading = false
+            )
+        )
+        val blankDoc = com.openofficepdf.engine.office.openxml.ParsedDocxDocument(
+            title = title,
+            blocks = listOf(blankBlock),
+            totalWords = 0
+        )
+        _uiState.value = _uiState.value.copy(
+            sessionId = null,
+            documentTitle = title,
+            parsedDocx = blankDoc,
+            isLoading = false,
+            isDirty = true,
+            viewMode = WordLayoutViewMode.MOBILE_REFLOW,
+            toastMessage = "已新建空白 Word 文档，点击即可开始打字排版"
+        )
+    }
+
     fun openDocument(docId: DocumentId, title: String, uri: Uri) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, documentTitle = title)
@@ -291,6 +317,10 @@ class WordWorkspaceViewModel(
                 }
             }
         }
+    }
+
+    fun showToast(msg: String) {
+        _uiState.value = _uiState.value.copy(toastMessage = msg)
     }
 
     fun clearToast() {

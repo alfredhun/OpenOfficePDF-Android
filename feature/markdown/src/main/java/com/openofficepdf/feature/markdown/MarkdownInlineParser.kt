@@ -11,11 +11,10 @@ import androidx.compose.ui.text.style.TextDecoration
 
 /**
  * 结构化行内标记解析与符号剥离引擎 (Inline Tokenizer & Styler)
- * 参考成熟 Markdown 解析器设计：
  * 1. 优先提取隔离原子令牌：行内代码 `code`、LaTeX 数学公式 $...$ / $$...$$、图片标签 ![alt](url)、超链接 [text](url)
- * 2. 严谨解析并剥离粗体、斜体、粗斜体、删除线定界符 (***, **, *, ___, __, _, ~~)
- * 3. 彻底防止孤立定界符残留、符号裸露在阅读视图中
- * 4. 100% 本地离线执行，零网络开销
+ * 2. 深度解析数学符号、微积分/代数表达式、上下标、根号分式、希腊字母
+ * 3. 剥离粗体、斜体、粗斜体、删除线定界符 (***, **, *, ___, __, _, ~~)
+ * 4. 彻底消除漏网孤立符号与未闭合标记，保障排版优雅
  */
 object MarkdownInlineParser {
 
@@ -37,13 +36,9 @@ object MarkdownInlineParser {
     fun parseInlineSpans(raw: String, isNightMode: Boolean = false): AnnotatedString {
         if (raw.isEmpty()) return AnnotatedString("")
 
-        // 第一步：清洗残留的块级标识符（如某些段落中残存的多余 '#' 或 '>'）
         val sanitized = sanitizeLinePrefixes(raw)
-
-        // 第二步：执行状态机与模式扫描，分发为令牌序列
         val tokens = tokenize(sanitized)
 
-        // 第三步：依据令牌生成 Compose AnnotatedString，并应用现代排版色彩
         return buildAnnotatedString {
             for (token in tokens) {
                 when (token) {
@@ -137,14 +132,12 @@ object MarkdownInlineParser {
 
     private fun sanitizeLinePrefixes(text: String): String {
         var s = text.trim()
-        // 去除残留的多余标题井号（如 "### 标题" 被当成行内传入时）
         if (s.startsWith("#")) {
             val idx = s.indexOfFirst { it != '#' }
             if (idx != -1 && s.getOrNull(idx) == ' ') {
                 s = s.substring(idx + 1).trim()
             }
         }
-        // 去除残余的引用符
         if (s.startsWith(">")) {
             s = s.removePrefix(">").trim()
         }
@@ -159,7 +152,7 @@ object MarkdownInlineParser {
         while (cursor < len) {
             val c = text[cursor]
 
-            // 1. 转义字符支持：\*、\$、\` 等
+            // 1. 转义字符支持
             if (c == '\\' && cursor + 1 < len) {
                 tokens.add(Token.Plain(text[cursor + 1].toString()))
                 cursor += 2
@@ -180,7 +173,6 @@ object MarkdownInlineParser {
             // 3. 数学公式：块级 $$...$$ 或行内 $...$
             if (c == '$') {
                 if (cursor + 1 < len && text[cursor + 1] == '$') {
-                    // $$ 块公式
                     val end = text.indexOf("$$", cursor + 2)
                     if (end != -1) {
                         val mathContent = text.substring(cursor + 2, end).trim()
@@ -189,7 +181,6 @@ object MarkdownInlineParser {
                         continue
                     }
                 } else {
-                    // $ 行内公式
                     val end = findMatchingDollar(text, cursor + 1)
                     if (end != -1) {
                         val mathContent = text.substring(cursor + 1, end).trim()
@@ -265,12 +256,11 @@ object MarkdownInlineParser {
                 }
             }
 
-            // 9. 单斜体：*text* 或 _text_（要求闭合且不是孤立符号）
+            // 9. 单斜体：*text* 或 _text_
             if ((c == '*' || c == '_') && cursor + 1 < len) {
                 val end = text.indexOf(c, cursor + 1)
                 if (end != -1 && end > cursor + 1 && !text[cursor + 1].isWhitespace()) {
                     val inner = text.substring(cursor + 1, end)
-                    // 确保内部没有未闭合的同类符号破坏层级
                     if (!inner.contains(c)) {
                         tokens.add(Token.Italic(inner))
                         cursor = end + 1
@@ -279,7 +269,7 @@ object MarkdownInlineParser {
                 }
             }
 
-            // 普通字符收集到 Plain 令牌
+            // 普通字符收集
             val lastToken = tokens.lastOrNull()
             if (lastToken is Token.Plain) {
                 tokens[tokens.lastIndex] = Token.Plain(lastToken.text + c)
@@ -292,10 +282,6 @@ object MarkdownInlineParser {
         return tokens
     }
 
-    /**
-     * 清理所有残留无用的 Markdown 孤立定界符号
-     * 例如漏网的孤立 `*`、`**`、`_`、`~`、`$`，防止泄漏给用户
-     */
     private fun cleanRemainingSymbols(text: String): String {
         return text
             .replace(Regex("""^\*+\s|\s\*+$"""), " ")
@@ -319,52 +305,152 @@ object MarkdownInlineParser {
     }
 
     /**
-     * 将常见 LaTeX 数学公式美化转换为 Unicode 视觉字符 (100% 本地极速转换)
+     * 将 LaTeX 数学公式精准美化转换为 Unicode 视觉字符 (100% 离线，涵盖希腊字母、代数、微积分、关系符、集合)
      */
     fun formatMathSnippet(latex: String): String {
         return latex
+            // 希腊小写字母
             .replace("\\alpha", "α")
             .replace("\\beta", "β")
             .replace("\\gamma", "γ")
             .replace("\\delta", "δ")
             .replace("\\epsilon", "ε")
+            .replace("\\varepsilon", "ε")
+            .replace("\\zeta", "ζ")
+            .replace("\\eta", "η")
             .replace("\\theta", "θ")
+            .replace("\\vartheta", "θ")
+            .replace("\\iota", "ι")
+            .replace("\\kappa", "κ")
             .replace("\\lambda", "λ")
             .replace("\\mu", "μ")
+            .replace("\\nu", "ν")
+            .replace("\\xi", "ξ")
             .replace("\\pi", "π")
+            .replace("\\varpi", "ϖ")
+            .replace("\\rho", "ρ")
+            .replace("\\varrho", "ϱ")
             .replace("\\sigma", "σ")
+            .replace("\\varsigma", "ς")
             .replace("\\tau", "τ")
+            .replace("\\upsilon", "υ")
             .replace("\\phi", "φ")
+            .replace("\\varphi", "ϕ")
+            .replace("\\chi", "χ")
+            .replace("\\psi", "ψ")
             .replace("\\omega", "ω")
+            // 希腊大写字母
+            .replace("\\Gamma", "Γ")
+            .replace("\\Delta", "Δ")
+            .replace("\\Theta", "Θ")
+            .replace("\\Lambda", "Λ")
+            .replace("\\Xi", "Ξ")
+            .replace("\\Pi", "Π")
+            .replace("\\Sigma", "Σ")
+            .replace("\\Upsilon", "Υ")
+            .replace("\\Phi", "Φ")
+            .replace("\\Psi", "Ψ")
+            .replace("\\Omega", "Ω")
+            // 算子与微积分
             .replace("\\sum", "∑")
             .replace("\\prod", "∏")
+            .replace("\\coprod", "∐")
             .replace("\\int", "∫")
+            .replace("\\iint", "∬")
+            .replace("\\iiint", "∭")
+            .replace("\\oint", "∮")
+            .replace("\\partial", "∂")
+            .replace("\\nabla", "∇")
             .replace("\\infty", "∞")
-            .replace("\\approx", "≈")
-            .replace("\\neq", "≠")
-            .replace("\\le", "≤")
-            .replace("\\ge", "≥")
+            // 关系运算符与代数
+            .replace("\\pm", "±")
+            .replace("\\mp", "∓")
             .replace("\\times", "×")
             .replace("\\div", "÷")
-            .replace("\\pm", "±")
-            .replace("\\sqrt", "√")
+            .replace("\\cdot", "·")
+            .replace("\\ast", "∗")
+            .replace("\\circ", "∘")
+            .replace("\\bullet", "•")
+            .replace("\\approx", "≈")
+            .replace("\\neq", "≠")
+            .replace("\\ne", "≠")
+            .replace("\\le", "≤")
+            .replace("\\leq", "≤")
+            .replace("\\ge", "≥")
+            .replace("\\geq", "≥")
+            .replace("\\equiv", "≡")
+            .replace("\\sim", "∼")
+            .replace("\\simeq", "≃")
+            .replace("\\cong", "≅")
+            .replace("\\propto", "∝")
+            .replace("\\ll", "≪")
+            .replace("\\gg", "≫")
+            // 逻辑与集合
+            .replace("\\in", "∈")
+            .replace("\\notin", "∉")
+            .replace("\\subset", "⊂")
+            .replace("\\supset", "⊃")
+            .replace("\\subseteq", "⊆")
+            .replace("\\supseteq", "⊇")
+            .replace("\\cap", "∩")
+            .replace("\\cup", "∪")
+            .replace("\\forall", "∀")
+            .replace("\\exists", "∃")
+            .replace("\\nexists", "∄")
+            .replace("\\emptyset", "∅")
+            .replace("\\empty", "∅")
+            .replace("\\land", "∧")
+            .replace("\\lor", "∨")
+            .replace("\\neg", "¬")
+            // 箭头符号
+            .replace("\\to", "→")
+            .replace("\\rightarrow", "→")
+            .replace("\\leftarrow", "←")
+            .replace("\\Rightarrow", "⇒")
+            .replace("\\Leftarrow", "⇐")
+            .replace("\\Leftrightarrow", "⇔")
+            .replace("\\iff", "⇔")
+            .replace("\\implies", "⇒")
+            // 几何与省略号
+            .replace("\\angle", "∠")
+            .replace("\\perp", "⊥")
+            .replace("\\parallel", "∥")
+            .replace("\\ldots", "…")
+            .replace("\\cdots", "⋯")
+            .replace("\\vdots", "⋮")
+            .replace("\\ddots", "⋱")
+            // 根号与分式
+            .replace(Regex("""\\sqrt\[([^\]]+)\]\{([^}]+)\}""")) { match ->
+                "${toSuperscript(match.groupValues[1])}√(${match.groupValues[2]})"
+            }
+            .replace(Regex("""\\sqrt\{([^}]+)\}""")) { match ->
+                "√(${match.groupValues[1]})"
+            }
             .replace(Regex("""\\frac\{([^}]+)\}\{([^}]+)\}""")) { match ->
                 "(${match.groupValues[1]} / ${match.groupValues[2]})"
             }
+            .replace(Regex("""\\dfrac\{([^}]+)\}\{([^}]+)\}""")) { match ->
+                "(${match.groupValues[1]} / ${match.groupValues[2]})"
+            }
+            // 上标与下标
             .replace(Regex("""\^\{([^}]+)\}""")) { match ->
                 match.groupValues[1].map { toSuperscript(it.toString()) }.joinToString("")
             }
-            .replace(Regex("""\^([0-9a-zA-Z])""")) { match ->
+            .replace(Regex("""\^([0-9a-zA-Z\+\-])""")) { match ->
                 toSuperscript(match.groupValues[1])
             }
             .replace(Regex("""_\{([^}]+)\}""")) { match ->
                 match.groupValues[1].map { toSubscript(it.toString()) }.joinToString("")
             }
-            .replace(Regex("""_([0-9a-zA-Z])""")) { match ->
+            .replace(Regex("""_([0-9a-zA-Z\+\-])""")) { match ->
                 toSubscript(match.groupValues[1])
             }
             .replace("\\{", "{")
             .replace("\\}", "}")
+            .replace("\\,", " ")
+            .replace("\\;", " ")
+            .replace("\\quad", "   ")
+            .replace("\\qquad", "      ")
             .replace("\\", "")
             .trim()
     }
@@ -374,7 +460,9 @@ object MarkdownInlineParser {
             "0" -> "⁰"; "1" -> "¹"; "2" -> "²"; "3" -> "³"; "4" -> "⁴"
             "5" -> "⁵"; "6" -> "⁶"; "7" -> "⁷"; "8" -> "⁸"; "9" -> "⁹"
             "+", "-" -> if (ch == "+") "⁺" else "⁻"
-            "n" -> "ⁿ"; "x" -> "ˣ"; "i" -> "ⁱ"; "y" -> "ʸ"; "a" -> "ᵃ"; "b" -> "ᵇ"
+            "=" -> "⁼"; "(" -> "⁽"; ")" -> "⁾"
+            "n" -> "ⁿ"; "x" -> "ˣ"; "i" -> "ⁱ"; "y" -> "ʸ"; "a" -> "ᵃ"; "b" -> "ᵇ"; "c" -> "ᶜ"
+            "m" -> "ᵐ"; "p" -> "ᵖ"; "t" -> "ᵗ"; "k" -> "ᵏ"
             else -> ch
         }
     }
@@ -384,7 +472,8 @@ object MarkdownInlineParser {
             "0" -> "₀"; "1" -> "₁"; "2" -> "₂"; "3" -> "₃"; "4" -> "₄"
             "5" -> "₅"; "6" -> "₆"; "7" -> "₇"; "8" -> "₈"; "9" -> "₉"
             "+", "-" -> if (ch == "+") "₊" else "₋"
-            "i" -> "ᵢ"; "j" -> "ⱼ"; "n" -> "ₙ"; "x" -> "ₓ"; "y" -> "ᵧ"; "k" -> "ₖ"
+            "=" -> "₌"; "(" -> "₍"; ")" -> "₎"
+            "i" -> "ᵢ"; "j" -> "ⱼ"; "n" -> "ₙ"; "x" -> "ₓ"; "y" -> "ᵧ"; "k" -> "ₖ"; "m" -> "ₘ"; "a" -> "ₐ"
             else -> ch
         }
     }
